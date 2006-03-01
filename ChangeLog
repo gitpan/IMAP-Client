@@ -1,4 +1,12 @@
-2005-12-13  Brenden Conte  <conteb@egwene.cct.rpi.edu>
-
+2006-03-01  Brenden Conte  <conteb@cpan.org>
+	* Fixed a quota parsing issue
+	* Fixed empty search results undef warning
+	* Fixed empty envelope information leading to odd-numbered hash warning
+	* Fixed bodysize in body hash being undef if invalid body piece selected - now set to 0
+	* Added quota parsing testing in make
+	* Added search result parsing testing in make
+	* Added example "test" clients to source under testclients directory
+	* 0.02 - Release
+	
+2005-12-13  Brenden Conte  <conteb@cpan.org>
 	* 0.01 - Initial development release.
-

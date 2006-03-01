@@ -4,6 +4,7 @@
 # Version 0.01
 # 2005-09-25 - Started work
 # 2005-12-08 - Module namespace approved by CPAN
+# 2006-02/06 - 0.01 released
 #
 # TODO
 #  - the objects 'server' hash does not reuse connections if the hostname is 
@@ -160,15 +161,15 @@ sub sequencify (@){ # preserves ordering over compression
     my $string;
     my ($start,$end);
     foreach my $number (@_) {
-	($start = $end = $number and next) unless ($start); # first entry;
-	if ($start) {
-	    if ($end+1 == $number) {
-		$end = $number;
-	    } else {
-		$string .= ($start == $end) ? "$start," : "$start:$end,";
-		$start = $end = $number;
-	    }
-	}
+		($start = $end = $number and next) unless ($start); # first entry;
+		if ($start) {
+		    if ($end+1 == $number) {
+				$end = $number;
+		    } else {
+				$string .= ($start == $end) ? "$start," : "$start:$end,";
+				$start = $end = $number;
+		    }
+		}
     }
     $string .= ($start == $end) ? "$start" : "$start:$end"; # last entry
     return($string);
@@ -179,38 +180,39 @@ sub throw_error($$) {
     my $newerror = $error || "Unknown/Generic error";
 
     if ($self->{onfail} eq 'error') {
-	if (($self->{errorstyle} eq 'stack') && (!$self->{error_read})) {
-	    $self->{error} .= "\n". $newerror;
-	} else {
-	    $self->{error} = $newerror;
-	}
-	$self->{error_read} = 0;
-	return (undef);
+		if (($self->{errorstyle} eq 'stack') && (!$self->{error_read})) {
+		    $self->{error} .= "\n". $newerror;
+		} else {
+		    $self->{error} = $newerror;
+		}
+		$self->{error_read} = 0;
+		return (undef);
     } elsif ($self->{onfail} eq 'abort') {
-	print STDERR $newerror;
-	exit(-1);
+		print STDERR $newerror;
+		exit(-1);
     } else {
-	print STDERR "INTERNAL ERROR: Unknown failure handler string [",$self->{onfail},"], aborting...\n";
-	exit(-1);
+		print STDERR "INTERNAL ERROR: Unknown failure handler string [",$self->{onfail},"], aborting...\n";
+		exit(-1);
     }
 }
 sub parse_select_examine(@) {
+	return() unless $_[0];
     my %ret;
     my ($_t, $_v);
     foreach my $line (@_) {
-	if (ok_response($line)) { # done
-	    my ($perm) = $line =~ /\[([\w-]+)\]/;
-	    $ret{OK} = $perm;
-	} elsif (($_t,$_v) = $line =~ /(\w+)\s*\((.*)\)/) { # flags: TITLE (\F \T...)
-	    $_v =~ s/\\//g;
-	    $ret{$_t} = $_v;
-	} elsif (($_t,$_v) = $line =~ /\[(\w+)\s*(\d+)\]/) { # title-num: [TITLE #]
-	    $ret{$_t} = $_v;
-	} elsif (($_v, $_t) = $line =~ /(\d+)\s*(\w+)/) { # num-title: # TITLE
-	    $ret{$_t} = $_v;
-	} else {
-	    warn "Unknown tagless response(): $line\n";
-	}
+		if (ok_response($line)) { # done
+		    my ($perm) = $line =~ /\[([\w-]+)\]/;
+		    $ret{OK} = $perm;
+		} elsif (($_t,$_v) = $line =~ /(\w+)\s*\((.*)\)/) { # flags: TITLE (\F \T...)
+		    $_v =~ s/\\//g;
+		    $ret{$_t} = $_v;
+		} elsif (($_t,$_v) = $line =~ /\[(\w+)\s*(\d+)\]/) { # title-num: [TITLE #]
+		    $ret{$_t} = $_v;
+		} elsif (($_v, $_t) = $line =~ /(\d+)\s*(\w+)/) { # num-title: # TITLE
+		    $ret{$_t} = $_v;
+		} else {
+		    warn "Unknown tagless response(): $line\n";
+		}
     }
     return(%ret);
 }
@@ -218,10 +220,10 @@ sub parse_list_lsub(@) {
     my @result = @_;
     my @list;
     foreach my $line (@result) {
-	next if (ok_response($line));
-	my ($flags,$reference,$mailbox) = $line =~ /^\*\s+LIST\s+\((.*?)\)\s+\"(.*)\"\s+\"(.*)\"\r\n$/;
-	my %hash = (FLAGS => $flags, REFERENCE => $reference, MAILBOX => $mailbox);
-	push @list, \%hash;
+		next if (ok_response($line));
+		my ($flags,$reference,$mailbox) = $line =~ /^\*\s+LIST\s+\((.*?)\)\s+\"(.*)\"\s+\"(.*)\"\r\n$/;
+		my %hash = (FLAGS => $flags, REFERENCE => $reference, MAILBOX => $mailbox);
+		push @list, \%hash;
     }
     return(@list);
 }
@@ -262,8 +264,9 @@ sub address($) {
     if ($rawlist eq "NIL") { return undef; }
     $rawlist =~ s/^\((.*)\)$/$1/;
     foreach my $address (split (/\)\(/,$rawlist)) {
-	my ($name,$relay,$mailbox,$host) = $address =~/^\(?($nstring) ($nstring) ($nstring) ($nstring)\)?$/;
-	push @addresses,((dequote($name)) ? dequote($name).' ' : '').'<'.
+		my ($name,$relay,$mailbox,$host) = $address =~/^\(?($nstring) ($nstring) ($nstring) ($nstring)\)?$/;
+		next unless ($name);
+		push @addresses,((dequote($name)) ? dequote($name).' ' : '').'<'.
 	    dequote($mailbox).(($relay ne 'NIL') ? '%'.dequote($relay) : '').
 	    '@'.dequote($host).'>';
     }
@@ -277,27 +280,29 @@ sub parse_parameters($) { # Parse parameter sequences, including w/ nested paren
     $parameters =~ s/^\((.*)\)$/$1/;
     my %hash;
     while ($parameters) {
-	my ($key,$value,$more) = $parameters =~ /^\s?\"(.*?)\" ($nstring|$parens)(.*)$/g;
-	$parameters = $more;
-	$value = dequote($value) || '';
-	$hash{uc($key)} = parse_parameters($value);
+		my ($key,$value,$more) = $parameters =~ /^\s?\"(.*?)\" ($nstring|$parens)(.*)$/g;
+		$parameters = $more;
+		$value = dequote($value) || '';
+		$hash{uc($key)} = parse_parameters($value);
     }
     return(\%hash);
 }
 sub parse_envelope($) {
     my $value = shift;
     my %ret;
+    my $_t;
     my ($date,$subject,$from,$sender,$replyto,$to,$cc,$bcc,$inreplyto,$messageid) = $value =~/^\(($string) ($nstring) ($nparens) ($nparens) ($nparens) ($nparens) ($nparens) ($nparens) ($nparens) ($nstring)\)$/;
-    %ret = (DATE => dequote($date),
-	    SUBJECT => dequote($subject),
-	    FROM => address($from),
-	    SENDER => address($sender),
-	    REPLYTO => address($replyto),
-	    TO => address($to),
-	    CC => address($cc),
-	    BCC => address($bcc),
-	    INREPLYTO => debracket(dequote($inreplyto)),
-	    MESSAGEID => debracket(dequote($messageid)));
+
+    $ret{'DATE'} = $_t if ($_t = dequote($date));
+    $ret{'SUBJECT'} = $_t if ($_t = dequote($subject));
+    $ret{'FROM'} = $_t if ($_t = address($from));
+    $ret{'SENDER'} = $_t if ($_t = address($sender));
+    $ret{'REPLYTO'} = $_t if ($_t = address($replyto));
+    $ret{'TO'} = $_t if ($_t = address($from));
+    $ret{'CC'} = $_t if ($_t = address($cc));
+    $ret{'BCC'} = $_t if ($_t = address($bcc));
+    $ret{'INREPLYTO'} = $_t if ($_t = address($inreplyto));
+    $ret{'MESSAGEID'} = $_t if ($_t = address($messageid));
     return(\%ret);
 }
 # recursive function for building body hash
@@ -312,89 +317,90 @@ sub parse_body_structure ($$) {
     my %ret;
     my $substruct;
     while ((($substruct,$structure) = $structure =~ /^($parens)(.*)$/)) {
-#	printf("DEBUG[$level]: Deciding fate of [%.80s...] ".(($structure)?"<more>":'')."\n",$substruct);# if ($self->{DEBUG});
+	#	printf("DEBUG[$level]: Deciding fate of [%.80s...] ".(($structure)?"<more>":'')."\n",$substruct);# if ($self->{DEBUG});
 
-	#body-type-mpart/body-type-message
-	if (my @results = $substruct =~ /^\((?:($parens+) ($string)|\"MESSAGE\" \"RFC822\" ($nparens) ($nstring) ($nstring) ($string) ($number) ($parens) ($parens) ($number))(?: ($nparens)(?: ($nparens)(?: ($nparens|$string)(?: ($nstring)(?:( $string| $number| $parens)+)?)?)?)?)?\)$/) {
-	    my ($body1, $subtype, $parameters, $id, $description, $encoding, $size, $envelope, $body2, $lines, $ext_parameters, $dsp, $lang, $loc, @extentions) = @results;
-	    # body1 and body2 will never both contain something (its an XOR relationship), so we can just use (body1 || body2) for 'the active body'	    
-#	    print "DEBUG[$level]: Processing body-type-" . (($parameters) ? "message" : "mpart") . " [$entry]\n";# if ($self->{DEBUG});
-#	    print "DEBUG[$level]: subtype = $subtype\n";
-	    if ($body1) { # ONLY create a new level if there is more than one entity on this (or next) level
-#		print "DEBUG[$level]: Diving one level deeper\n";# if ($self->{DEBUG});
-		$ret{$entry}=\%{{(parse_body_structure($body1||$body2,$level+1))}};
-#		print "DEBUG[$level]: rose back - above saved in [$entry]\n";# if ($self->{DEBUG});
-	    } else {
-#		print "DEBUG[$level]: applying at same-level\n";# if ($self->{DEBUG});
-#		print "DEBUG[$level]: Parsing envelope\n";# if ($self->{DEBUG} && $parameters);
-		my %body_step = parse_body_structure($body1||$body2,$level+1);
-#		print "DEBUG[$level]: collapsing above into current [$entry]\n";# if ($self->{DEBUG});
-		my $new_entry = $entry;
-		foreach my $key (keys %body_step) {
-		    if ($key =~ /^\d+$/) {
-#			print "DEBUG[$level]: Storing a level higher [$entry+($key-1)]=$body_step{$key} at this level\n";# if ($self->{DEBUG});
-			$ret{$entry+($key-1)} = $body_step{$key}; #mv to local lvl
-			$new_entry = $entry+($key-1);
+		#body-type-mpart/body-type-message
+		if (my @results = $substruct =~ /^\((?:($parens+) ($string)|\"MESSAGE\" \"RFC822\" ($nparens) ($nstring) ($nstring) ($string) ($number) ($parens) ($parens) ($number))(?: ($nparens)(?: ($nparens)(?: ($nparens|$string)(?: ($nstring)(?:( $string| $number| $parens)+)?)?)?)?)?\)$/) {
+		    my ($body1, $subtype, $parameters, $id, $description, $encoding, $size, $envelope, $body2, $lines, $ext_parameters, $dsp, $lang, $loc, @extentions) = @results;
+		    # body1 and body2 will never both contain something (its an XOR relationship), so we can just use (body1 || body2) for 'the active body'	    
+	#	    print "DEBUG[$level]: Processing body-type-" . (($parameters) ? "message" : "mpart") . " [$entry]\n";# if ($self->{DEBUG});
+	#	    print "DEBUG[$level]: subtype = $subtype\n";
+		    if ($body1) { # ONLY create a new level if there is more than one entity on this (or next) level
+		#		print "DEBUG[$level]: Diving one level deeper\n";# if ($self->{DEBUG});
+				$ret{$entry}=\%{{(parse_body_structure($body1||$body2,$level+1))}};
+		#		print "DEBUG[$level]: rose back - above saved in [$entry]\n";# if ($self->{DEBUG});
 		    } else {
-#			print "DEBUG[$level]: Storing mpart [$key]=[$body_step{$key}] in [$entry]\n";# if ($self->{DEBUG});
-			$ret{$entry}->{$key} = $body_step{$key};
-		    }		    
+		#		print "DEBUG[$level]: applying at same-level\n";# if ($self->{DEBUG});
+		#		print "DEBUG[$level]: Parsing envelope\n";# if ($self->{DEBUG} && $parameters);
+				my %body_step = parse_body_structure($body1||$body2,$level+1);
+		#		print "DEBUG[$level]: collapsing above into current [$entry]\n";# if ($self->{DEBUG});
+				my $new_entry = $entry;
+				foreach my $key (keys %body_step) {
+				    if ($key =~ /^\d+$/) {
+			#			print "DEBUG[$level]: Storing a level higher [$entry+($key-1)]=$body_step{$key} at this level\n";# if ($self->{DEBUG});
+						$ret{$entry+($key-1)} = $body_step{$key}; #mv to local lvl
+						$new_entry = $entry+($key-1);
+				    } else {
+			#			print "DEBUG[$level]: Storing mpart [$key]=[$body_step{$key}] in [$entry]\n";# if ($self->{DEBUG});
+						$ret{$entry}->{$key} = $body_step{$key};
+				    }		    
+				}
+				$entry = $new_entry;
+		    }
+		    my %envelope = parse_envelope($envelope) if ($envelope);
+		    $ret{$entry}->{'ENVELOPE'} = \%envelope if (%envelope); #$fetch->...->{header}->{?}
+		    # apply local-entry stuff here, after {$entry} has been 'ovewritten' above
+		    $ret{$entry}->{'CONTENTTYPE'} = "MULTIPART/".dequote($subtype) if ($subtype); # the only topic that is applied one level above
+		    $ret{$entry}->{'PARAMETERS'} = parse_parameters($parameters) if ($parameters && ($parameters ne 'NIL'));
+		    $ret{$entry}->{'ID'} = $id if ($id && ($id ne 'NIL'));
+		    $ret{$entry}->{'DESCRIPTION'} = $description if ($description && ($description ne 'NIL'));
+		    $ret{$entry}->{'ENCODING'} = $encoding if ($encoding);
+		    $ret{$entry}->{'SIZE'} = $size if ($size);
+		    $ret{$entry}->{'LINES'} = $lines if ($lines);
+		    $ret{$entry}->{'DISPOSITION'} = parse_perameters($dsp) if ($dsp && ($dsp ne 'NIL'));
+		    $ret{$entry}->{'LANGUAGE'} = parse_parameters($lang) if ($lang && ($lang ne 'NIL'));
+		    $ret{$entry}->{'LOCATION'} = $loc if ($loc && ($loc ne 'NIL'));
+		    $ret{$entry}->{'EXT_PARAMETERS'} = parse_parameters($ext_parameters) if ($ext_parameters && ($ext_parameters ne 'NIL'));
+		    # WARNING: custom extentions currently ignored
+			
 		}
-		$entry = $new_entry;
-	    }
-	    my %envelope = parse_envelope($envelope) if ($envelope);
-	    $ret{$entry}->{'ENVELOPE'} = \%envelope if (%envelope); #$fetch->...->{header}->{?}
-	    # apply local-entry stuff here, after {$entry} has been 'ovewritten' above
-	    $ret{$entry}->{'CONTENTTYPE'} = "MULTIPART/".dequote($subtype) if ($subtype); # the only topic that is applied one level above
-	    $ret{$entry}->{'PARAMETERS'} = parse_parameters($parameters) if ($parameters && ($parameters ne 'NIL'));
-	    $ret{$entry}->{'ID'} = $id if ($id && ($id ne 'NIL'));
-	    $ret{$entry}->{'DESCRIPTION'} = $description if ($description && ($description ne 'NIL'));
-	    $ret{$entry}->{'ENCODING'} = $encoding if ($encoding);
-	    $ret{$entry}->{'SIZE'} = $size if ($size);
-	    $ret{$entry}->{'LINES'} = $lines if ($lines);
-	    $ret{$entry}->{'DISPOSITION'} = parse_perameters($dsp) if ($dsp && ($dsp ne 'NIL'));
-	    $ret{$entry}->{'LANGUAGE'} = parse_parameters($lang) if ($lang && ($lang ne 'NIL'));
-	    $ret{$entry}->{'LOCATION'} = $loc if ($loc && ($loc ne 'NIL'));
-	    $ret{$entry}->{'EXT_PARAMETERS'} = parse_parameters($ext_parameters) if ($ext_parameters && ($ext_parameters ne 'NIL'));
-	    # WARNING: custom extentions currently ignored
-		
-	}
-	 
+		 
 	
-	#body-type-text/body-type-basic/body-type-msg (media)
-	elsif (my ($type, $subtype, $parameters, $id, $description, $encoding, $size, $lines, $md5, $dsp, $lang, $loc, @extentions) = $substruct =~ /^\(($string) ($string) ($nparens) ($nstring) ($nstring) ($string) ($number)(?: ($number))?(?: ($nstring)(?: ($nparens)(?: ($nparens|$string)(?: ($nstring)(?:( $string| $number| $parens)+)?)?)?)?)?\)$/) {
-	    # hash the parameters
-#	    print "DEBUG[$level]: Processing body-type-text/basic [$entry]\n";# if ($self->{DEBUG});
-	    my %t_ret;
-	    $t_ret{'CONTENTTYPE'} = dequote($type).'/'.dequote($subtype);
-	    $t_ret{'PARAMETERS'} = parse_parameters($parameters);
-	    $t_ret{'ID'} = $id if ($id ne 'NIL');
-	    $t_ret{'DESC'} = $description if ($description && ($description ne 'NIL'));
-	    $t_ret{'ENCODING'} = dequote($encoding);
-	    $t_ret{'SIZE'} = $size;
-	    $t_ret{'LINES'} = $lines if ($lines);
-	    $t_ret{'MD5'} = $md5 if ($md5 && ($md5 ne 'NIL'));
-	    $t_ret{'DISPOSITION'} = parse_parameters($dsp) if ($dsp && ($dsp ne 'NIL'));
-	    $t_ret{'LANGUAGE'} = parse_parameters($lang) if ($lang && ($lang ne 'NIL'));
-	    $t_ret{'LOCATION'} = $loc if ($loc && ($loc ne 'NIL'));
-	    $ret{$entry} = \%t_ret;
-	}
-	else {	#unknown (error)
-	    die("Unknown structure in parse_body_structure: [$substruct]");
-	}
-	$entry++;
+		#body-type-text/body-type-basic/body-type-msg (media)
+		elsif (my ($type, $subtype, $parameters, $id, $description, $encoding, $size, $lines, $md5, $dsp, $lang, $loc, @extentions) = $substruct =~ /^\(($string) ($string) ($nparens) ($nstring) ($nstring) ($string) ($number)(?: ($number))?(?: ($nstring)(?: ($nparens)(?: ($nparens|$string)(?: ($nstring)(?:( $string| $number| $parens)+)?)?)?)?)?\)$/) {
+		    # hash the parameters
+	#	    print "DEBUG[$level]: Processing body-type-text/basic [$entry]\n";# if ($self->{DEBUG});
+		    my %t_ret;
+		    $t_ret{'CONTENTTYPE'} = dequote($type).'/'.dequote($subtype);
+		    $t_ret{'PARAMETERS'} = parse_parameters($parameters);
+		    $t_ret{'ID'} = $id if ($id ne 'NIL');
+		    $t_ret{'DESC'} = $description if ($description && ($description ne 'NIL'));
+		    $t_ret{'ENCODING'} = dequote($encoding);
+		    $t_ret{'SIZE'} = $size;
+		    $t_ret{'LINES'} = $lines if ($lines);
+		    $t_ret{'MD5'} = $md5 if ($md5 && ($md5 ne 'NIL'));
+		    $t_ret{'DISPOSITION'} = parse_parameters($dsp) if ($dsp && ($dsp ne 'NIL'));
+		    $t_ret{'LANGUAGE'} = parse_parameters($lang) if ($lang && ($lang ne 'NIL'));
+		    $t_ret{'LOCATION'} = $loc if ($loc && ($loc ne 'NIL'));
+		    $ret{$entry} = \%t_ret;
+		} 
+		
+		else {	#unknown (error)
+		    die("Unknown structure in parse_body_structure: [$substruct]");
+		}
+		$entry++;
     }
     if ($level == 0) {
-#	print "DEBUG[$level]: Returning final result\n";# if ($self->{DEBUG});
-	# FIXME: DIRTY, DIRTY HACK - return self only if no children to children- otherwise return level 1
-	if ($ret{1}->{1}) {
-	    return(%{$ret{1}});
-	} else {
-	    return(%ret);
-	}
+		#	print "DEBUG[$level]: Returning final result\n";# if ($self->{DEBUG});
+		# FIXME: DIRTY, DIRTY HACK - return self only if no children to children- otherwise return level 1
+		if ($ret{1}->{1}) {
+		    return(%{$ret{1}});
+		} else {
+		    return(%ret);
+		}
     } else {
-#	print "DEBUG[$level]: Returning\n";# if ($self->{DEBUG});
-	return(%ret);
+	#	print "DEBUG[$level]: Returning\n";# if ($self->{DEBUG});
+		return(%ret);
     }
 }
 sub extract_body($$) {
@@ -405,14 +411,14 @@ sub extract_body($$) {
 }
 sub parse_search (@) {
     my (@resp) = @_;
-    my @results;
+    my @results = ();
     # find SEARCH line and process results
     foreach my $line (@resp) {
         next unless ($line =~ s/^\*\s+SEARCH\s+([\d+\s]+)\s*\r\n$/$1/);
-	@results = split(/ /,$line);
-	last; # theres only 1 line
+		@results = split(/ /,$line);
+		last; # theres only 1 line
     }
-    return(wantarray ? @results : sequencify(@results));
+    return(wantarray ? @results : @results ? sequencify(@results) : undef );
 }
 use re 'eval';
 sub parse_fetch ($@) {
@@ -424,72 +430,72 @@ sub parse_fetch ($@) {
 
     # find FETCH lines and process results
     while (my ($msgid) = ($fetchset =~ /^\* (\d+) FETCH \(/gs)) {
-	my %ret;
-	my $len = length($msgid)+10; # get length of just-extracted line
-	$fetchset = substr($fetchset, $len); # remove it from the remainder of the FETCH response
-	# Break into hash (unfortunately, we can't do it inline regexp, since thre is a 32765 char limit on {min,max}. grr)
-	my %result_entries;
-	while (!($fetchset =~ /^(?:\* (\d+) FETCH \(|\r\n\S+ OK)/)) {
-	    my ($key, $length) = ($fetchset =~ /^(BODY|BODYSTRUCTURE|ENVELOPE|FLAGS|INTERNALDATE|UID|RFC822.SIZE|BODY\[.*?\](?:\<\d+\>)?|RFC822(?:\.TEXT|\.HEADER)?) (?:\{(\d+)\}\r?\n?)?/gis) or return($self->throw_error("INTERNAL ERROR: unable to find keys in [".substr($fetchset,0,20)));
-	    $fetchset = substr($fetchset,(length($key)+1)+(($length) ? length($length)+4 : 0)); # trim newly found entries
-	    if ($length) {
-		$result_entries{$key}{'length'} = $length;
-		$result_entries{$key}{'value'} = substr($fetchset,0,$length); # Save length of value
-		if (length($result_entries{$key}{'value'}) < $length) {
-		    return($self->throw_error("INTERNAL ERROR: unable to get [$length] length of fetchset [".length($fetchset)." available]"));
-		}
-		$fetchset = substr($fetchset,$length); # trim length of message
-	    } else { # no length, just a value
-		($result_entries{$key}{'value'}) = ($fetchset =~ /^($parens|$nstring|$number)/gis) 
-		    or return($self->throw_error("INTERNAL ERROR: No value in [".substr($fetchset,0,20)."]"));
-		$fetchset = substr($fetchset,length($result_entries{$key}{'value'}));
-	    }
-	    # trim end-of-command space
-	    $fetchset = substr($fetchset,1) if ($fetchset);
-	}
-	$fetchset = substr($fetchset,2) if ($fetchset =~ /"\r\n"/);
-
-
-	 # Ok, we have our entries for this msgid - store them
-	foreach my $key (keys %result_entries) {
-	    if ($key eq "FLAGS") { #list of flags
-		$result_entries{$key}{'value'} =~ s/^\((.*)\)/$1/; # deparenthesize
-		my @flags = split(/ /,$result_entries{$key}{'value'}); # split flags to list
-		$ret{$key}=\@flags;
-	    } elsif ($key =~ /^BODY\[(.*)\](?:\<(\d+)\>)?$/) {
-		my ($section, $offset) = ($1, $2); # save selection id, offset
-		unless ($ret{'BODY'}) { my %newhash; $ret{'BODY'} = \%newhash; } # if no accompanying BODY[STRCUTURE] 
-		my $hashptr = $ret{'BODY'}; # set up hash pointer
-		foreach my $next (split(/\./,$section)) { # split on . for each level
-		    unless ($hashptr->{$next}) { # if a BODYSTRUCTURE or BODY does not acompany the BODY[]
-			my %newhash;
-			$hashptr->{$next} = \%newhash; # create structure depth
+		my %ret;
+		my $len = length($msgid)+10; # get length of just-extracted line
+		$fetchset = substr($fetchset, $len); # remove it from the remainder of the FETCH response
+		# Break into hash (unfortunately, we can't do it inline regexp, since thre is a 32765 char limit on {min,max}. grr)
+		my %result_entries;
+		while (!($fetchset =~ /^(?:\* (\d+) FETCH \(|\r\n\S+ OK)/)) {
+		    my ($key, $length) = ($fetchset =~ /^(BODY|BODYSTRUCTURE|ENVELOPE|FLAGS|INTERNALDATE|UID|RFC822.SIZE|BODY\[.*?\](?:\<\d+\>)?|RFC822(?:\.TEXT|\.HEADER)?) (?:\{(\d+)\}\r?\n?)?/gis) or return($self->throw_error("INTERNAL ERROR: unable to find keys in [".substr($fetchset,0,20)));
+		    $fetchset = substr($fetchset,(length($key)+1)+(($length) ? length($length)+4 : 0)); # trim newly found entries
+		    if ($length) {
+				$result_entries{$key}{'length'} = $length;
+				$result_entries{$key}{'value'} = substr($fetchset,0,$length); # Save length of value
+				if (length($result_entries{$key}{'value'}) < $length) {
+				    return($self->throw_error("INTERNAL ERROR: unable to get [$length] length of fetchset [".length($fetchset)." available]"));
+				}
+			$fetchset = substr($fetchset,$length); # trim length of message
+		    } else { # no length, just a value
+				($result_entries{$key}{'value'}) = ($fetchset =~ /^($parens|$nstring|$number)/gis) 
+				    or return($self->throw_error("INTERNAL ERROR: No value in [".substr($fetchset,0,20)."]"));
+				$fetchset = substr($fetchset,length($result_entries{$key}{'value'}));
 		    }
-		    $hashptr = $hashptr->{$next}; # dive one level deeper
+		    # trim end-of-command space
+		    $fetchset = substr($fetchset,1) if ($fetchset);
 		}
-		$hashptr->{'BODY'} = $result_entries{$key}{'value'};
-		$hashptr->{'BODYSIZE'} = $result_entries{$key}{'length'};
-		$hashptr->{'OFFSET'} = $offset if $offset;
-	    } elsif ($key eq "RFC822") {
-		my ($headers, $text) = split(/\r\n\r\n/,$result_entries{$key}{'value'});
-		$ret{'RFC822'}->{'HEADERS'} = $headers;
-		$ret{'RFC822'}->{'TEXT'} = $text;
-	    } elsif (my ($token) = ($key =~ /^RFC822.(.+)$/)) {
-		$ret{'RFC822'}->{$token} = $result_entries{$key}{'value'};
-	    } elsif ($key eq "INTERNALDATE") {
-		$result_entries{$key}{'value'} =~ s/\"([^\"]+)\"/$1/; # remove quotes
-		$ret{$key} = $result_entries{$key}{'value'};
-	    } elsif ($key eq "ENVELOPE") {
-		$ret{$key} = parse_envelope($result_entries{$key}{'value'});
-	    } elsif (($key eq "BODY") || ($key eq "BODYSTRUCTURE")) {
-		my %body = parse_body_structure($result_entries{$key}{'value'},0);
-		$ret{$key} = \%body;
-	    } else {
-		$ret{$key}=$result_entries{$key}{'value'};
-	    }
-	}
-	die "*****************************WARNING: ret is empty!************************\n" unless (%ret);
-	$results{$msgid} = \%ret;
+		$fetchset = substr($fetchset,2) if ($fetchset =~ /"\r\n"/);
+
+
+		 # Ok, we have our entries for this msgid - store them
+		foreach my $key (keys %result_entries) {
+		    if ($key eq "FLAGS") { #list of flags
+				$result_entries{$key}{'value'} =~ s/^\((.*)\)/$1/; # deparenthesize
+				my @flags = split(/ /,$result_entries{$key}{'value'}); # split flags to list
+				$ret{$key}=\@flags;
+		    } elsif ($key =~ /^BODY\[(.*)\](?:\<(\d+)\>)?$/) {
+				my ($section, $offset) = ($1, $2); # save selection id, offset
+				unless ($ret{'BODY'}) { my %newhash; $ret{'BODY'} = \%newhash; } # if no accompanying BODY[STRCUTURE] 
+				my $hashptr = $ret{'BODY'}; # set up hash pointer
+				foreach my $next (split(/\./,$section)) { # split on . for each level
+				    unless ($hashptr->{$next}) { # if a BODYSTRUCTURE or BODY does not acompany the BODY[]
+						my %newhash;
+						$hashptr->{$next} = \%newhash; # create structure depth
+				    }
+				    $hashptr = $hashptr->{$next}; # dive one level deeper
+				}
+				$hashptr->{'BODY'} = $result_entries{$key}{'value'};
+				$hashptr->{'BODYSIZE'} = $result_entries{$key}{'length'} || 0;
+				$hashptr->{'OFFSET'} = $offset if $offset;
+		    } elsif ($key eq "RFC822") {
+				my ($headers, $text) = split(/\r\n\r\n/,$result_entries{$key}{'value'});
+				$ret{'RFC822'}->{'HEADERS'} = $headers;
+				$ret{'RFC822'}->{'TEXT'} = $text;
+		    } elsif (my ($token) = ($key =~ /^RFC822.(.+)$/)) {
+				$ret{'RFC822'}->{$token} = $result_entries{$key}{'value'};
+		    } elsif ($key eq "INTERNALDATE") {
+				$result_entries{$key}{'value'} =~ s/\"([^\"]+)\"/$1/; # remove quotes
+				$ret{$key} = $result_entries{$key}{'value'};
+		    } elsif ($key eq "ENVELOPE") {
+				$ret{$key} = parse_envelope($result_entries{$key}{'value'});
+		    } elsif (($key eq "BODY") || ($key eq "BODYSTRUCTURE")) {
+				my %body = parse_body_structure($result_entries{$key}{'value'},0);
+				$ret{$key} = \%body;
+		    } else {
+				$ret{$key}=$result_entries{$key}{'value'};
+		    }
+		}
+		die "*****************************WARNING: ret is empty!************************\n" unless (%ret);
+		$results{$msgid} = \%ret;
     }
     die "*****************************WARNING: results are empty!************************\n" unless (%results);
     return(%results);
@@ -523,22 +529,21 @@ sub fill_permissions($) {
     return($hash);
 }    
 sub parse_quota($$) {
-    my ($mailbox,$resp) = @_;
+    my ($localroot,$resp) = @_;
     my @resp = @{$resp};
     my %quota;
-    my $localroot = $mailbox;
     
     foreach my $line (@resp) {
-	if (my @resources = ($line =~ /^\* QUOTA $localroot ($parens+)\r\n$/)) {
-	    foreach my $resource (@resources) {
-		my ($topic, $values) = ($resource =~ /^\((\w+) (\d|\s)+\)$/);
-		my @numbers = split(/ /,$values);
-		$quota{$topic} = \@numbers;
-	    }
-	} elsif (my ($ref) = ($line =~ /^\* QUOTAROOT $mailbox (.*)\r\n$/)) {
-	    $quota{'ROOT'} = $ref;
-	    $localroot = $ref;
-	}
+		if (my @resources = ($line =~ /^\* QUOTA $localroot ($parens+)\r\n$/)) {
+		    foreach my $resource (@resources) {
+			my ($topic, $values) = ($resource =~ /^\((\w+) (\d+ \d+)\)$/);
+			my @numbers = split(/ /,$values);
+			$quota{$topic} = \@numbers;
+		    }
+		} elsif (my ($ref) = ($line =~ /^\* QUOTAROOT $localroot (.*)\r\n$/)) {
+		    $quota{'ROOT'} = $ref;
+		    $localroot = $ref;
+		}
     }
     return(%quota);
 }
@@ -601,14 +606,14 @@ sub imap_receive($) {
 #    return($self->throw_error("No servers defined for receiving")) unless $self->{'_active_server'};
     my (@r, $_t);
     do {
-	$_t = $self->{'server'}->{$self->{'_active_server'}}->getline; 
-	print "<< $_t" if ($self->{DEBUG});
-	push (@r, $_t);
+		$_t = $self->{'server'}->{$self->{'_active_server'}}->getline; 
+		print "<< $_t" if ($self->{DEBUG});
+		push (@r, $_t);
     } until ($_t =~ /^$self->{tag}/);
-    if ($#r < 1) {
-	return ($r[0]);
+	if ($#r < 1) {
+		return ($r[0]);
     } else {
-	return(@r);
+		return(@r);
     }
 }
 
@@ -673,15 +678,15 @@ sub new ($){
 
     # If a server was supplied, try to connect to it
     if (my $server = shift) {
-	if ($self->connect(PeerAddr => $server)) {
-	    return($self);
-	} else {
-	    my $err = $self->{error};
-	    undef $self;
-	    return($err);
-	}
+		if ($self->connect(PeerAddr => $server)) {
+		    return($self);
+		} else {
+		    my $err = $self->{error};
+		    undef $self;
+		    return($err);
+		}
     } else {
-	return($self);
+		return($self);
     }
 }
 
@@ -698,9 +703,9 @@ Set the debug level.  Valid values are 0 (for no debugging) or 1 (for a communic
 sub debuglevel($$) {
     my ($self,$level) = @_;
     if (($level >= 0) && ($level <= 1)) {
-	$self->{DEBUG} = $level;
+		$self->{DEBUG} = $level;
     } else {
-	return($self->throw_error("Invalid value [$level] for debuglevel: valid values are 0 or 1"));
+		return($self->throw_error("Invalid value [$level] for debuglevel: valid values are 0 or 1"));
     }
 }
 
@@ -716,9 +721,9 @@ sub onfail($$) {
     my ($self,$action) = @_;
     $action = lc($action);
     if (($action eq 'error') || ($action eq 'abort')){
-	$self->{onfail} = $action;
+		$self->{onfail} = $action;
     } else {
-	return($self->throw_error("Invalid value [$action] for onfail: valid values are 'ERROR' or 'ABORT'"));
+		return($self->throw_error("Invalid value [$action] for onfail: valid values are 'ERROR' or 'ABORT'"));
     }
 }
 
@@ -734,9 +739,9 @@ sub errorstyle($$) {
     my ($self,$action) = @_;
     $action = lc($action);
     if (($action eq 'last') || ($action eq 'stack')){
-	$self->{errorstyle} = $action;
+		$self->{errorstyle} = $action;
     } else {
-	return($self->throw_error("Invalid value [$action] for errorstyle: valid values are 'LAST' or 'STACK'"));
+		return($self->throw_error("Invalid value [$action] for errorstyle: valid values are 'LAST' or 'STACK'"));
     }
 }
 
@@ -789,37 +794,37 @@ sub _imap_command ($$@) {
     $self->imap_send(($argset[0]) ? "$command $argset[0]" : $command);
     
     while (1) {
-	my $resp = $self->imap_receive_tagless();
-	if ($resp) {
-	    push(@fullresp,$resp);
-	    
-	    if (ok_response($resp)) {
-		if ($i != $#argset) {
-		    print STDERR "WARNING: Only ", $i+1 ," arguments of ", $#argset+1 ," used before successful response in [$command] command\n";
-		}
-		return(@fullresp);
-	    } elsif (continue_response($resp)) {
-		if ($i < $#argset) {
-		    $self->imap_send_tagless($argset[++$i]);
+		my $resp = $self->imap_receive_tagless();
+		if ($resp) {
+		    push(@fullresp,$resp);
+		    
+		    if (ok_response($resp)) {
+				if ($i != $#argset) {
+				    print STDERR "WARNING: Only ", $i+1 ," arguments of ", $#argset+1 ," used before successful response in [$command] command\n";
+				}
+				return(@fullresp);
+		    } elsif (continue_response($resp)) {
+				if ($i < $#argset) {
+				    $self->imap_send_tagless($argset[++$i]);
+				} else {
+				    return($self->throw_error("$command failed: Server wanted more continuations than the ".$#argset." provided"));
+				}
+		    } elsif (untagged_response($resp)) {
+				# do nothing, keep reading
+		    } elsif (failure_response($resp)) {
+				return($self->throw_error("$command failed: @fullresp"));
+		    } else {
+				# unrecognized response - put in any times its ok for this to happen in the unless statement.
+				unless ((lc($command) eq 'fetch') || (lc($command) eq 'uid fetch')) {
+				    return($self->throw_error("INTERNAL ERROR: _IMAP_COMMAND - Unrecognized response from $command: @fullresp"));
+				}
+	    	}
 		} else {
-		    return($self->throw_error("$command failed: Server wanted more continuations than the ".$#argset." provided"));
+		    return($self->throw_error("No response from server"));
 		}
-	    } elsif (untagged_response($resp)) {
-		# do nothing, keep reading
-	    } elsif (failure_response($resp)) {
-		return($self->throw_error("$command failed: @fullresp"));
-	    } else {
-		# unrecognized response - put in any times its ok for this to happen in the unless statement.
-		unless ((lc($command) eq 'fetch') || (lc($command) eq 'uid fetch')) {
-		    return($self->throw_error("INTERNAL ERROR: _IMAP_COMMAND - Unrecognized response from $command: @fullresp"));
-		}
-	    }
-	} else {
-	    return($self->throw_error("No response from server"));
-	}
     }
     
-    # finish reading command, since we're out of arguments
+# finish reading command, since we're out of arguments
 #    my @resp = $self->imap_receive();
     
 #    (ok_response(@resp)) ?
@@ -879,64 +884,63 @@ sub connect($%) {
     my $errorstr;
     my $server;
     foreach my $method (@methods) {
-	my @resp;
-	if ($method eq "SSL") {
-	    $args{PeerPort} = $args{IMAPSPort} || 993;
-	    unless ($server = new IO::Socket::SSL(%args)) {
-		$errorstr .= "SSL Attempt: ". IO::Socket::SSL::errstr() ."\n";
-		next;
-	    }
-	} elsif ($method eq 'STARTTLS') {
-	    $args{PeerPort} = $args{IMAPPort} || 143;
-	    unless ($server = new IO::Socket::INET(%args)) {
-		$errorstr .= "STARTTLS Attempt: Unable to connect: $@\n";
-		next;
-	    }
-	} elsif ($method eq 'PLAIN') {
-	    $args{PeerPort} = $args{IMAPPort} || 143;
-
-	    unless ($server = new IO::Socket::INET(%args)) {
-		$errorstr .= "PLAIN Attempt: Unable to connect: $@\n";
-		next;
-	    }
-	}
-	# Execute a command to verify we're connected - some servers will accept a connection
-	# but immediately dump the connection if something isn't supported (i.e. Exchange and
-	# connecting to Non-ssl when SSL is required by the server)
-
-	# UNCLEAN: the server has to be preset for communications to work
-	my $prev_active_server = $self->{'_active_server'};
-	$self->{'server'}->{$args{'PeerAddr'}} = $server;
-	$self->{'_active_server'} = $args{'PeerAddr'};
-	@resp = $self->imap_receive_tagless(); # collect welcome
-	if ($resp[0] && untagged_ok_response(@resp) && ok_response($self->noop())) {
-	    # Post-processing
-	    if ($method eq 'STARTTLS') {
-		if ($self->starttls()) {
-		    $connected = 'ok';
-		    last;
-		} else {
-		    $errorstr .= "STARTTLS Attempt: ".$self->error()."\n";
-		    next;
+		my @resp;
+		if ($method eq "SSL") {
+		    $args{PeerPort} = $args{IMAPSPort} || 993;
+		    unless ($server = new IO::Socket::SSL(%args)) {
+				$errorstr .= "SSL Attempt: ". IO::Socket::SSL::errstr() ."\n";
+				next;
+		    }
+		} elsif ($method eq 'STARTTLS') {
+		    $args{PeerPort} = $args{IMAPPort} || 143;
+		    unless ($server = new IO::Socket::INET(%args)) {
+				$errorstr .= "STARTTLS Attempt: Unable to connect: $@\n";
+				next;
+		    }
+		} elsif ($method eq 'PLAIN') {
+		    $args{PeerPort} = $args{IMAPPort} || 143;
+		    unless ($server = new IO::Socket::INET(%args)) {
+				$errorstr .= "PLAIN Attempt: Unable to connect: $@\n";
+				next;
+		    }
 		}
-	    } else {
-		$connected = 'ok';
-	    }
-	} else {
-	    $errorstr .= "$method attempt: Connection dropped upon connect\n";
-	}
-	# restore old settings (if we're successful, we'll *properly* set this up below)
-	$self->{'_active_server'} = $prev_active_server;
-	delete $self->{'server'}->{$args{'PeerAddr'}}; #probably unessesary
+		# Execute a command to verify we're connected - some servers will accept a connection
+		# but immediately dump the connection if something isn't supported (i.e. Exchange and
+		# connecting to Non-ssl when SSL is required by the server)
+	
+		# UNCLEAN: the server has to be preset for communications to work
+		my $prev_active_server = $self->{'_active_server'};
+		$self->{'server'}->{$args{'PeerAddr'}} = $server;
+		$self->{'_active_server'} = $args{'PeerAddr'};
+		@resp = $self->imap_receive_tagless(); # collect welcome
+		if ($resp[0] && untagged_ok_response(@resp) && ok_response($self->noop())) {
+		    # Post-processing
+		    if ($method eq 'STARTTLS') {
+				if ($self->starttls()) {
+				    $connected = 'ok';
+				    last;
+				} else {
+				    $errorstr .= "STARTTLS Attempt: ".$self->error()."\n";
+				    next;
+				}
+		    } else {
+				$connected = 'ok';
+		    }
+		} else {
+		    $errorstr .= "$method attempt: Connection dropped upon connect\n";
+		}
+		# restore old settings (if we're successful, we'll *properly* set this up below)
+		$self->{'_active_server'} = $prev_active_server;
+		delete $self->{'server'}->{$args{'PeerAddr'}}; #probably unessesary
     }
-    
+	    
     if (!$connected) {
-	chop($errorstr); # clip the tailing newline: we print errors without them
-	return ($self->throw_error($errorstr));
+		chop($errorstr); # clip the tailing newline: we print errors without them
+		return ($self->throw_error($errorstr));
     } else {
-	$self->{'server'}->{$args{'PeerAddr'}} = $server;
-	$self->{'_active_server'} = $args{'PeerAddr'} unless ($self->{'server'});
-	$self->error; # clear error logs
+		$self->{'server'}->{$args{'PeerAddr'}} = $server;
+		$self->{'_active_server'} = $args{'PeerAddr'} unless ($self->{'server'});
+		$self->error; # clear error logs
     }
     
     return(1);
@@ -954,20 +958,20 @@ sub disconnect($$) {
     my ($self,$server) = @_;
 
     return($self->throw_error("Server [$server] not found"))
-	unless $self->{'server'}->{$server};
+		unless $self->{'server'}->{$server};
 
     if ($server eq $self->{'_active_server'}) {
-	# randomly choose a new one, if available
-	foreach my $key (keys %{$self->{'server'}}) {
-	    if ($key ne $server) {
-		$self->{'_active_server'} = $key;
-		last;
-	    }
-	}
-	# ensure we have a new one - if not, we are the last
-	if ($server eq $self->{'_active_server'}) {
-	    $self->{'_active_server'} = undef;
-	}
+		# randomly choose a new one, if available
+		foreach my $key (keys %{$self->{'server'}}) {
+		    if ($key ne $server) {
+				$self->{'_active_server'} = $key;
+				last;
+		    }
+		}
+		# ensure we have a new one - if not, we are the last
+		if ($server eq $self->{'_active_server'}) {
+		    $self->{'_active_server'} = undef;
+		}
     }
     $self->{'server'}->{$server}->close(); # close connection
     delete $self->{'server'}->{$server}; # remove server
@@ -1004,23 +1008,23 @@ sub capability() {
     my ($self) = @_;
     
     if ($self->{capability}) {
-	return($self->{capability});
+		return($self->{capability});
     }
     my @resp = $self->_imap_command("CAPABILITY", undef);
 
     # Cache the results if ok:
     if ($resp[0]) {
-	$self->{capability} = @resp;
-	my %abilities;
-	foreach my $line (@resp) {  # find the untagged capability line
-	    if (my ($capability) = $line =~ /^\*\s+CAPABILITY (.*)$/) {
-		foreach my $caps (split(/ /,$capability)) {
-		    $abilities{$caps} = 1;
+		$self->{capability} = @resp;
+		my %abilities;
+		foreach my $line (@resp) {  # find the untagged capability line
+		    if (my ($capability) = $line =~ /^\*\s+CAPABILITY (.*)$/) {
+				foreach my $caps (split(/ /,$capability)) {
+				    $abilities{$caps} = 1;
+				}
+				last;
+		    }
 		}
-		last;
-	    }
-	}
-	$self->{capabilities} = \%abilities;
+		$self->{capabilities} = \%abilities;
     }
     return(@resp);
 }
@@ -1072,16 +1076,16 @@ sub starttls ($){
     my ($self) = @_;
 
     unless ($self->check_capability('STARTTLS')) {
-	return($self->throw_error("STARTTLS not found in CAPABILITY"));
+		return($self->throw_error("STARTTLS not found in CAPABILITY"));
     }
     my @recv = $self->_imap_command("STARTTLS",undef);
     print "<TLS negotiations>\n" if $self->{DEBUG}; # compensation for lack of tapping into dump
     if (IO::Socket::SSL->start_SSL($self->{'server'}->{$self->{'_active_server'}})) {
-	# per RFC 3501 - 6.2.1, we must re-establish the CAPABILITY of the server after STARTTLS
-	$self->{capability} = '';
-	@recv = $self->capability();
+		# per RFC 3501 - 6.2.1, we must re-establish the CAPABILITY of the server after STARTTLS
+		$self->{capability} = '';
+		@recv = $self->capability();
     } else {
-	return($self->throw_error("STARTTLS Attempt: ".IO::Socket::SSL::errstr()))
+		return($self->throw_error("STARTTLS Attempt: ".IO::Socket::SSL::errstr()))
     }
     return(@recv);
 }
@@ -1159,7 +1163,7 @@ Open a mailbox in read-write mode so that messages in the mailbox can be accesse
 
 If the server supports an earlier version of the protocol than IMAPv4, the only flags required are FLAGS, EXISTS, and RECENT.
 
-Finally, hash responses will have an 'OK' key that will contain the current permissional status, either 'READ-WRITE' or 'READ-ONLY', if returned by the server.
+Finally, hash responses will have an 'OK' key that will contain the current permissional status, either 'READ-WRITE' or 'READ-ONLY', if returned by the server.  Returns an empty (undefined) hash on error.
 
 =cut
 
@@ -1172,7 +1176,7 @@ sub select($$) {
 
 =item B<examine($mailbox)>
 
-Identical to select(), except the mailbox is opened READ-ONLY.
+Identical to select(), except the mailbox is opened READ-ONLY.  Returns an empty (unefined) hash on error.
 
 =cut
 
@@ -1208,26 +1212,26 @@ sub create($$) {
     
     # set quota (if needed)
     if ($properties->{quota}) {
-	foreach my $type (keys %{$properties->{quota}}) {
-	    unless ($properties->{quota}->{$type} =~ /^\d+$/) {
-		$self->throw_error("Quota second argument not numerical in create");
-		goto fail;
-	    }
-	    
-	    unless ($self->setquota($mailbox,$type,$properties->{quota}->{$type})) {
-		goto fail;
-	    }
-	}
+		foreach my $type (keys %{$properties->{quota}}) {
+		    unless ($properties->{quota}->{$type} =~ /^\d+$/) {
+				$self->throw_error("Quota second argument not numerical in create");
+				goto fail;
+		    }
+		    
+		    unless ($self->setquota($mailbox,$type,$properties->{quota}->{$type})) {
+				goto fail;
+		    }
+		}
     }
 
     # set current owner(s) permissions (if needed)
     if ($properties->{permissions}) {
-	my %owners = $self->getacl($mailbox);
-	foreach my $owner (keys %owners) {
-	    unless ($self->setacl($mailbox,$owner,$self->buildacl($properties->{permissions}))) {
-		goto fail;
-	    }
-	}
+		my %owners = $self->getacl($mailbox);
+		foreach my $owner (keys %owners) {
+		    unless ($self->setacl($mailbox,$owner,$self->buildacl($properties->{permissions}))) {
+			goto fail;
+		    }
+		}
     }
 
     return(1);
@@ -1235,7 +1239,7 @@ sub create($$) {
 fail:
     $self->setacl($mailbox,$self->{auth},$self->buildacl('all')); # cover cases where need explicit delete permission (as admin, for example)
     unless ($self->delete($mailbox)) {
-	return($self->throw_error("Failed applying properties, and couldn't delete mailbox in recovery ****CLEANUP REQUIRED***"));
+		return($self->throw_error("Failed applying properties, and couldn't delete mailbox in recovery ****CLEANUP REQUIRED***"));
     }
     return($self->throw_error("Mailbox [$mailbox] creation aborted"));
 }
@@ -1339,11 +1343,11 @@ sub status($$@) {
     my %results;
 
     unless (@statuslist) {
-	return($self->throw_error("No status options to check in STATUS command"));
+		return($self->throw_error("No status options to check in STATUS command"));
     }
     my $statusitems = '(';
     foreach my $status (@statuslist) {
-	$statusitems .= "$status ";
+		$statusitems .= "$status ";
     }
     chop($statusitems); # we don't want that trailing space
     $statusitems .= ')';
@@ -1354,7 +1358,7 @@ sub status($$@) {
     # find STATUS line and process results
     foreach my $line (@resp) {
         next unless ($line =~ s/^\*\s+STATUS\s+\S+\s+\((.*?)\)\r\n$/$1/);
-	%results = split(/ /,$line); # thanks to the "key value key value" string
+		%results = split(/ /,$line); # thanks to the "key value key value" string
     }
     
     return(%results);
@@ -1394,9 +1398,9 @@ sub append ($$$) {
     $flaglist = "()" unless $flaglist;
 
     if ($self->check_capability('LITERAL+')) { #non-synchronizing literals support
-	return($self->_imap_command("APPEND","$mailbox $flaglist {$messagelen+}\r\n$message"));
+		return($self->_imap_command("APPEND","$mailbox $flaglist {$messagelen+}\r\n$message"));
     } else {
-	return($self->_imap_command("APPEND","$mailbox $flaglist {$messagelen}",$message));
+		return($self->_imap_command("APPEND","$mailbox $flaglist {$messagelen}",$message));
     }
 }
 
@@ -1751,14 +1755,14 @@ sub getacl ($$) {
 
     my %permissions;
     foreach my $line (@resp) {
-	if (my ($set) = ($line =~ /^\* ACL $mailbox (.*)\r\n$/i)) {
-	    my %_hash = split(/ /,$set); # split out user/perms set
-	    foreach my $user (keys %_hash) {
-		my %_perms = map {$_ => 1} split(//,$_hash{$user});
-		#fill_permissions(\%_perms);
-		$permissions{$user} = \%_perms;
-	    }
-	}
+		if (my ($set) = ($line =~ /^\* ACL $mailbox (.*)\r\n$/i)) {
+		    my %_hash = split(/ /,$set); # split out user/perms set
+		    foreach my $user (keys %_hash) {
+				my %_perms = map {$_ => 1} split(//,$_hash{$user});
+				#fill_permissions(\%_perms);
+				$permissions{$user} = \%_perms;
+		    }
+		}
     }
     
     return(%permissions);
@@ -1796,7 +1800,7 @@ sub revoke ($$$@) {
     my %remove = map {$_ => 1} split(//,$self->buildacl(@permissions));
     #fill_permissions(\%remove);
     foreach my $perm (keys %remove) {
-	delete $acls{$user}->{$perm};
+		delete $acls{$user}->{$perm};
     }
 
     return($self->setacl($mailbox,$user,(keys %{$acls{$user}})));
@@ -1817,9 +1821,9 @@ sub listrights($$$) {
     
     my %permissions;
     foreach my $line (@resp) {
-	if (my ($permissionstring) = ($line =~ /^\* LISTRIGHTS $mailbox $user (.*)\r\n$/i)) {
-	    %permissions = map{ $_ => 1 } split(/ /,$permissionstring);
-	}
+		if (my ($permissionstring) = ($line =~ /^\* LISTRIGHTS $mailbox $user (.*)\r\n$/i)) {
+		    %permissions = map{ $_ => 1 } split(/ /,$permissionstring);
+		}
     }
     #fill_permissions(\%permissions);
 
@@ -1841,9 +1845,9 @@ sub myrights($$) {
 
     my %permissions;
     foreach my $line (@resp) {
-	if (my ($permissionstring) = ($line =~ /^\* MYRIGHTS $mailbox (.*)\r\n$/i)) {
-	    %permissions = map {$_ => 1} split(//,$permissionstring);
-	}
+		if (my ($permissionstring) = ($line =~ /^\* MYRIGHTS $mailbox (.*)\r\n$/i)) {
+		    %permissions = map {$_ => 1} split(//,$permissionstring);
+		}
     }
     fill_permissions(\%permissions);
 
@@ -2020,20 +2024,20 @@ sub id($%) {
     return($self->throw_error("ID not supported for ID command")) unless ($self->check_capability('ID'));
 
     if (%perams) {
-	$peramlist = '(';
-	foreach my $key (keys %perams) {
-	    if (length($key) > 30) { # defined in RFC section 3.3
-		return ($self->throw_error("Client key [$key] too long: ".length($key)." bytes, max 30 bytes"));
-	    }
-	    if (length($perams{$key}) > 1024) {# defined in RFC section 3.3
-		return($self->throw_error("Client value [$perams{$key}] too long: ".length($perams{$key}).", max 1024 bytes"));
-	    }
-	    $peramlist .= "\"$key\" \"$perams{$key}\" ";
-	}
-	chop $peramlist; # rid ourselves of the last space
-	$peramlist .= ')'; #overwrite last space with )
+		$peramlist = '(';
+		foreach my $key (keys %perams) {
+		    if (length($key) > 30) { # defined in RFC section 3.3
+				return ($self->throw_error("Client key [$key] too long: ".length($key)." bytes, max 30 bytes"));
+		    }
+		    if (length($perams{$key}) > 1024) {# defined in RFC section 3.3
+				return($self->throw_error("Client value [$perams{$key}] too long: ".length($perams{$key}).", max 1024 bytes"));
+		    }
+		    $peramlist .= "\"$key\" \"$perams{$key}\" ";
+		}
+		chop $peramlist; # rid ourselves of the last space
+		$peramlist .= ')'; #overwrite last space with )
     } else {
-	$peramlist = 'NIL';
+		$peramlist = 'NIL';
     }
     
     return($self->_imap_command("ID",$peramlist));
@@ -2103,43 +2107,43 @@ sub buildacl ($@) {
     my ($self, @acls) = @_;
     my %acllist;
     foreach my $aclset (@acls) {
-	$aclset = lc($aclset);
-	foreach my $acl (split(/ /,$aclset)) {
-	    if ($acl eq 'all') { # start with valid words
-		push(@acls, qw(l r s w i p c d a 0 1 2 3 4 5 6 7 8 9));
-	    } elsif ($acl eq 'none') { 
-		# we silently accept 'none', which is the same as no options
-	    } elsif ($acl =~ /^[lrswipcda0123456789]{2,}$/){ # if it looks like a valid permissions string (2 or more),split and use
-		push(@acls,split(//,$acl));     
-	    } elsif (($acl eq 'l') || ($acl eq 'lookup') || ($acl eq 'list')) { # move on to individual permissions
-		$acllist{'l'} = 1;
-	    } elsif (($acl eq 'r') || ($acl eq 'read')) {
-		$acllist{'r'} = 1;
-	    } elsif (($acl eq 's') || ($acl eq 'seen')) {
-		$acllist{'s'} = 1;
-	    } elsif (($acl eq 'w') || ($acl eq 'write')) {
-		$acllist{'w'} = 1;
-	    } elsif (($acl eq 'i') || ($acl eq 'insert')) {
-		$acllist{'i'} = 1;
-	    } elsif (($acl eq 'p') || ($acl eq 'post')) {
-		$acllist{'p'} = 1;
-	    } elsif (($acl eq 'c') || ($acl eq 'create')) {
-		$acllist{'c'} = 1;
-	    } elsif (($acl eq 'd') || ($acl eq 'delete')) {
-		$acllist{'d'} = 1;
-	    } elsif (($acl eq 'a') || ($acl eq 'admin') || ($acl eq 'administer')) {
-		$acllist{'a'} = 1;
-	    } elsif ($acl =~ /^\d$/) {
-		$acllist{"$acl"} = 1;
-	    } else {
-		return($self->throw_error("Invalid setacl option [$acl]"));
-	    }
-	}
+		$aclset = lc($aclset);
+		foreach my $acl (split(/ /,$aclset)) {
+		    if ($acl eq 'all') { # start with valid words
+				push(@acls, qw(l r s w i p c d a 0 1 2 3 4 5 6 7 8 9));
+		    } elsif ($acl eq 'none') { 
+				# we silently accept 'none', which is the same as no options
+		    } elsif ($acl =~ /^[lrswipcda0123456789]{2,}$/){ # if it looks like a valid permissions string (2 or more),split and use
+				push(@acls,split(//,$acl));     
+		    } elsif (($acl eq 'l') || ($acl eq 'lookup') || ($acl eq 'list')) { # move on to individual permissions
+				$acllist{'l'} = 1;
+		    } elsif (($acl eq 'r') || ($acl eq 'read')) {
+				$acllist{'r'} = 1;
+		    } elsif (($acl eq 's') || ($acl eq 'seen')) {
+				$acllist{'s'} = 1;
+		    } elsif (($acl eq 'w') || ($acl eq 'write')) {
+				$acllist{'w'} = 1;
+		    } elsif (($acl eq 'i') || ($acl eq 'insert')) {
+				$acllist{'i'} = 1;
+		    } elsif (($acl eq 'p') || ($acl eq 'post')) {
+				$acllist{'p'} = 1;
+		    } elsif (($acl eq 'c') || ($acl eq 'create')) {
+				$acllist{'c'} = 1;
+		    } elsif (($acl eq 'd') || ($acl eq 'delete')) {
+				$acllist{'d'} = 1;
+		    } elsif (($acl eq 'a') || ($acl eq 'admin') || ($acl eq 'administer')) {
+				$acllist{'a'} = 1;
+	    	} elsif ($acl =~ /^\d$/) {
+				$acllist{"$acl"} = 1;
+		    } else {
+				return($self->throw_error("Invalid setacl option [$acl]"));
+		    }
+		}
     }
     
     # compile into final string and return
     foreach my $key (keys %acllist) {
-	$aclstr .= $key;
+		$aclstr .= $key;
     }
     return($aclstr);
 }
@@ -2238,49 +2242,49 @@ sub buildfetch($$$) {
     my $fetchstr = '(';
 
     if (ref($bodies) eq "HASH") { # convert a single hash ref arg to an array ref of 1
-	$bodies = [$bodies];
+		$bodies = [$bodies];
     }
 
     foreach my $body (@{$bodies}) {
 
-	if ((exists $body->{'offset'}) && !(exists $body->{'length'})) {
-	    return($self->throw_error("Length must be specified with offset"));
-	}
+		if ((exists $body->{'offset'}) && !(exists $body->{'length'})) {
+		    return($self->throw_error("Length must be specified with offset"));
+		}
 	
-	my $bodystr='';
-	if ($body->{'header'}) {
-	    if ($body->{'header'} eq 'ALL') {
-		$bodystr .= 'HEADER ';
-	    } elsif ($body->{'header'} eq 'MATCH') {
-		return($self->throw_error("headerfields not defined for MATCH in buildfetch")) unless ($body->{headerfields});
-		$bodystr .= 'HEADER.FIELDS ('.$body->{headerfields}.') ';
-	    } elsif ($body->{'header'} eq 'NOT') {
-		return($self->throw_error("headerfields not defined for NOT in buildfetch")) unless ($body->{headerfields});
-		$bodystr .= 'HEADER.FIELDS.NOT ('.$body->{headerfields}.') ';
-	    }
-	}
+		my $bodystr='';
+		if ($body->{'header'}) {
+		    if ($body->{'header'} eq 'ALL') {
+				$bodystr .= 'HEADER ';
+		    } elsif ($body->{'header'} eq 'MATCH') {
+				return($self->throw_error("headerfields not defined for MATCH in buildfetch")) unless ($body->{headerfields});
+				$bodystr .= 'HEADER.FIELDS ('.$body->{headerfields}.') ';
+		    } elsif ($body->{'header'} eq 'NOT') {
+				return($self->throw_error("headerfields not defined for NOT in buildfetch")) unless ($body->{headerfields});
+				$bodystr .= 'HEADER.FIELDS.NOT ('.$body->{headerfields}.') ';
+		    }
+		}
 	
-	$bodystr .= "$body->{body} " if ($body->{'body'});
-	chop($bodystr) if $bodystr;
+		$bodystr .= "$body->{body} " if ($body->{'body'});
+		chop($bodystr) if $bodystr;
 	
-	$fetchstr .= "BODY" . (($body->{'peek'}) ? ".PEEK" : '') . "[$bodystr] ";
-	
-	if ($body->{'offset'} || $body->{'length'}) {
-	    chop($fetchstr);
-	    $fetchstr .= "<". ($body->{'offset'} || '0') . "." . $body->{'length'} . "> ";
-	}
+		$fetchstr .= "BODY" . (($body->{'peek'}) ? ".PEEK" : '') . "[$bodystr] ";
+		
+		if ($body->{'offset'} || $body->{'length'}) {
+		    chop($fetchstr);
+		    $fetchstr .= "<". ($body->{'offset'} || '0') . "." . $body->{'length'} . "> ";
+		}
     }
 
     if ($other) {
-	$other =~ s/^\(?(.*?)\)?$/$1/; # remove any surrounding parenthasies
-	foreach my $item (split(/ /,$other)) {
-	    $item = uc($item);
-	    if ($item =~ /^(BODY|BODYSTRUCTURE|ENVELOPE|FLAGS|INTERNALDATE|UID|RFC822|RFC822\.HEADER|RFC822\.SIZE|RFC822\.TEXT|ALL|FAST|FULL)$/) {
-		$fetchstr .= "$item ";
-	    } else {
-		return($self->throw_error("Invalid buildfetch command: $item"));
-	    }
-	}
+		$other =~ s/^\(?(.*?)\)?$/$1/; # remove any surrounding parenthasies
+		foreach my $item (split(/ /,$other)) {
+		    $item = uc($item);
+		    if ($item =~ /^(BODY|BODYSTRUCTURE|ENVELOPE|FLAGS|INTERNALDATE|UID|RFC822|RFC822\.HEADER|RFC822\.SIZE|RFC822\.TEXT|ALL|FAST|FULL)$/) {
+				$fetchstr .= "$item ";
+		    } else {
+				return($self->throw_error("Invalid buildfetch command: $item"));
+		    }
+		}
     }
 
     chop($fetchstr);
@@ -2304,20 +2308,20 @@ sub buildflaglist($@) {
     my $flagstring;
     my %flaghash;
     if (@flags) {
-	$flagstring = '(';
+		$flagstring = '(';
 
-	# first normalize to one occurance of each argument
-	foreach my $flag (@flags) {
-	    $flaghash{ucfirst(lc($flag))} = 1;
-	}
+		# first normalize to one occurance of each argument
+		foreach my $flag (@flags) {
+		    $flaghash{ucfirst(lc($flag))} = 1;
+		}
 
-	# add prefix '\' if nessesary
-	foreach my $flag (keys(%flaghash)) {
-	    $flag =~ s/^(\w)/\\$1/;
-	    $flagstring .= "$flag ";
-	}
-	chop($flagstring);
-	$flagstring .= ')';
+		# add prefix '\' if nessesary
+		foreach my $flag (keys(%flaghash)) {
+		    $flag =~ s/^(\w)/\\$1/;
+		    $flagstring .= "$flag ";
+		}
+		chop($flagstring);
+		$flagstring .= ')';
     }
 
     return($flagstring);
@@ -2365,12 +2369,12 @@ sub parse_referral() { #FIXME: needs wider testing
 	split(/;AUTH=/,uri_unescape($uri->userinfo)); 
     my $fullpath = '';
     foreach my $dir (split('/',uri_unescape($uri->path))) {
-	if (my ($option) = ($dir =~ /^\;(.*)$/)) {
-	    my ($key,$value) = split(/=/,$1);
-	    $hash{uc($key)} = $value;
-	} else {
-	    $fullpath .= $dir;
-	}
+		if (my ($option) = ($dir =~ /^\;(.*)$/)) {
+		    my ($key,$value) = split(/=/,$1);
+		    $hash{uc($key)} = $value;
+		} else {
+		    $fullpath .= $dir;
+		}
     }
     $hash{'PATH'} = $fullpath;
 
