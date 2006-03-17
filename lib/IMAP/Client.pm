@@ -32,7 +32,7 @@ $|=1;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw( Exporter );
-$VERSION = "0.01";
+$VERSION = "0.03";
 @EXPORT = qw ();
 @EXPORT_OK = qw();
 %EXPORT_TAGS = ();
@@ -54,7 +54,7 @@ $VERSION = "0.01";
         die "Failed to create object: $imap\n";
     }
 (or)
-    my $imap - new IMAP::Client();
+    my $imap = new IMAP::Client();
     imap->connect(PeerAddr => $server,
 		  ConnectMethod => 'SSL STARTTLS PLAIN',
 		  )
