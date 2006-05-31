@@ -1,0 +1,26 @@
+2006-05-31  Brenden Conte  <conteb@cpan.org>
+	* 0.10 - Release.  Jumped to .10 to signify important multi-server changes
+	* Removed the "_active_server" functionality.  Instead, all connections will require new object, and class variables will keep track of connections
+	* Fixed bug in parse_list_lsub for some servers that did not always quote mailbox names (Dalbec)
+	* Fixed bad testing values (tests were right, values were wrong) (Hull)
+	* Fixed errors in value setting for parsing fetch (Budic)
+	* Added parsesublist test with iplanet responses
+	* Added 'usertest' program with a more limited set of commands than admintest, but using multiple connections
+	
+2006-03-17  Brenden Conte  <conteb@cpan.org>
+    * Fixed versioning issue
+    * 0.03 - Release
+	* Fixed erronious 'paste' within comments
+
+2006-03-01  Brenden Conte  <conteb@cpan.org>
+	* Fixed a quota parsing issue
+	* Fixed empty search results undef warning
+	* Fixed empty envelope information leading to odd-numbered hash warning
+	* Fixed bodysize in body hash being undef if invalid body piece selected - now set to 0
+	* Added quota parsing testing in make
+	* Added search result parsing testing in make
+	* Added example "test" clients to source under testclients directory
+	* 0.02 - Release
+	
+2005-12-13  Brenden Conte  <conteb@cpan.org>
+	* 0.01 - Initial development release.

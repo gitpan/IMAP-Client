@@ -2,15 +2,7 @@
 #
 # Copyright (c) 2005 Brenden Conte <conteb@cpan.org>, All Rights Reserved
 # Version 0.01
-# 2005-09-25 - Started work
-# 2005-12-08 - Module namespace approved by CPAN
-# 2006-02/06 - 0.01 released
 #
-# TODO
-#  - the objects 'server' hash does not reuse connections if the hostname is 
-#    slightly different.  Perhaps index on IP instead.
-#
-
 
 package IMAP::Client;
 
@@ -32,12 +24,14 @@ $|=1;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw( Exporter );
-$VERSION = "0.03";
+$VERSION = "0.10";
 @EXPORT = qw ();
 @EXPORT_OK = qw();
 %EXPORT_TAGS = ();
 
-
+# Create Class variables
+my %Instances;
+my $ID;
 
 =pod
 
@@ -77,6 +71,12 @@ $VERSION = "0.03";
 
  FIXME: more examples here
 
+=head1 IMPORTANT! READ THIS FIRST IF YOU ARE UPGRADING FROM PRE-0.10 TO 0.10 OR ABOVE!
+
+As of IMAP::Client 0.10, the "_active_server" mechanism has been removed, replaced instead by a class-wide monitoring of objects.  This means that if you have any code that utilizes the active_server functionality (using more than one connection in an instance of IMAP::Client), you will need to change your code to create seperate instances for each connection.
+
+Unfortunately, backward compatibility could not be maintained with this change.  However since tracking is now behind-the-scenes, this style should be the final one.
+
 =head1 DESCRIPTION
 
 This module was created as a low-level inteface to any IMAP server.  It was built to be a 'clear box' solution to working with an IMAP environment.  The idea is that anything an IMAP client should be able to do, and any information available via the IMAP specs, should be available to a client interface and user.  This way, the full strength of the IMAP protocol and data can be utilized, ideally in the most network-efficient mannger possible, rather than being contrained only to a subset of commands or data-limited responses.  If the server says it, the client should be able to see it.
@@ -105,7 +105,7 @@ This module also tries to follow the various RFCs for IMAPrev1 communications ve
 
 =item * RFC 2359 - IMAP4 UIDPLUS extension (Partial in 0.01 - UID EXPUNGE check ok, need COPYUID and APPENDUID support)
 
-=item * RFC 2971 - IMAP4 ID extension (0.01)use Net::IMAP::Advanced;
+=item * RFC 2971 - IMAP4 ID extension (0.01)
 
 =item * RFC 3348 - IMAP4 Child Mailbox Extention (Not directly supported yet)
 
@@ -198,7 +198,7 @@ sub throw_error($$) {
 sub parse_select_examine(@) {
 	return() unless $_[0];
     my %ret;
-    my ($_t, $_v);
+    my ($_t, $_v); # t is the TITLE (or label/tag), and v is the VALUE of t.
     foreach my $line (@_) {
 		if (ok_response($line)) { # done
 		    my ($perm) = $line =~ /\[([\w-]+)\]/;
@@ -210,6 +210,8 @@ sub parse_select_examine(@) {
 		    $ret{$_t} = $_v;
 		} elsif (($_v, $_t) = $line =~ /(\d+)\s*(\w+)/) { # num-title: # TITLE
 		    $ret{$_t} = $_v;
+		} elsif (($_t, $_v) = $line =~ /NO\s+\[(.*?)\]\s+(.*)$/) { # NO [TITLE] VALUE (usually for ALERTs)
+			$ret{$_t} = $_v;
 		} else {
 		    warn "Unknown tagless response(): $line\n";
 		}
@@ -221,7 +223,7 @@ sub parse_list_lsub(@) {
     my @list;
     foreach my $line (@result) {
 		next if (ok_response($line));
-		my ($flags,$reference,$mailbox) = $line =~ /^\*\s+LIST\s+\((.*?)\)\s+\"(.*)\"\s+\"(.*)\"\r\n$/;
+		my ($flags,$reference,$mailbox) = $line =~ /^\*\s+LIST\s+\((.*?)\)\s+\"(.*)\"\s+\"?(.*?)\"?\r\n$/;
 		my %hash = (FLAGS => $flags, REFERENCE => $reference, MAILBOX => $mailbox);
 		push @list, \%hash;
     }
@@ -298,11 +300,11 @@ sub parse_envelope($) {
     $ret{'FROM'} = $_t if ($_t = address($from));
     $ret{'SENDER'} = $_t if ($_t = address($sender));
     $ret{'REPLYTO'} = $_t if ($_t = address($replyto));
-    $ret{'TO'} = $_t if ($_t = address($from));
+    $ret{'TO'} = $_t if ($_t = address($to));
     $ret{'CC'} = $_t if ($_t = address($cc));
     $ret{'BCC'} = $_t if ($_t = address($bcc));
     $ret{'INREPLYTO'} = $_t if ($_t = address($inreplyto));
-    $ret{'MESSAGEID'} = $_t if ($_t = address($messageid));
+    $ret{'MESSAGEID'} = $_t if ($_t = debracket(dequote($messageid)));
     return(\%ret);
 }
 # recursive function for building body hash
@@ -563,8 +565,8 @@ Sends the string argument provided to the server.  A tag is automatically prepen
     
 sub imap_send ($$) {
     my ($self,$string) = @_;
-#    return($self->throw_error("No servers defined for [$string]")) unless $self->{'_active_server'};
-    my $server = $self->{'server'}->{$self->{'_active_server'}};
+#    return($self->throw_error("No servers defined for [$string]")) unless $self->{'server'};
+    my $server = $self->{'server'};
 
     my $tag = sprintf("%04i",++$self->{tag});
     chomp($string);
@@ -585,8 +587,8 @@ Send the string argument provided to the server B<without a tag>.  This is neede
 
 sub imap_send_tagless ($$) {
     my ($self,$string) = @_;
-#    return($self->throw_error("No servers defined for [$string]")) unless $self->{'_active_server'};
-    my $server = $self->{'server'}->{$self->{'_active_server'}};
+#    return($self->throw_error("No servers defined for [$string]")) unless $self->{'server'};
+    my $server = $self->{'server'};
 
     print ">> $string\r\n" if ($self->{DEBUG});
     print $server "$string\r\n";
@@ -594,7 +596,7 @@ sub imap_send_tagless ($$) {
 
 =pod
 
-=item B<imap_receive()>
+=item B<imap_receive()> 
 
 Accept responses from the server until the previous tag is encountered, at which point return the entire response.  CAUTION: can cause your program to hang if a tagged response isn't given.  For example, if the command expects more input and issues a '+' response, and waits for input, this function will never return. 
 
@@ -603,10 +605,10 @@ Accept responses from the server until the previous tag is encountered, at which
 # FIXME: A timeout option would be nice...
 sub imap_receive($) {
     my ($self) = @_;
-#    return($self->throw_error("No servers defined for receiving")) unless $self->{'_active_server'};
+#    return($self->throw_error("No servers defined for receiving")) unless $self->{'server'};
     my (@r, $_t);
     do {
-		$_t = $self->{'server'}->{$self->{'_active_server'}}->getline; 
+		$_t = $self->{'server'}->getline; 
 		print "<< $_t" if ($self->{DEBUG});
 		push (@r, $_t);
     } until ($_t =~ /^$self->{tag}/);
@@ -627,9 +629,9 @@ Accept a line of response, regardless if a tag is provided.  Misuse of this func
 
 sub imap_receive_tagless($) {
     my ($self) = @_;
-#    return($self->throw_error("No servers defined for receiving")) unless ($self->{'_active_server'});
+#    return($self->throw_error("No servers defined for receiving")) unless ($self->{'server'});
     my ($_t);
-    $_t = $self->{'server'}->{$self->{'_active_server'}}->getline; 
+    $_t = $self->{'server'}->getline; 
     print "<< $_t" if ($_t && $self->{DEBUG});
     return ($_t);
 }
@@ -659,9 +661,12 @@ Creates a new IMAP object.  You can optionally specify the server to connect to,
 =cut
 
 sub new ($){
-    my (undef) = shift; #ignore first arg
-    my $self = {server => {},
-		_active_server => undef,
+    my $proto = shift; #ignore first arg
+    my $self = {};
+    bless $self = {
+		ID => $ID++,
+    	name => '', # the DNS/IP address to match
+    	server => '', # Actual socket
 		tag => '*',
 		error => '',
 		error_read => 1,
@@ -673,9 +678,9 @@ sub new ($){
 		capability_checking => 1,
 		user => '',
 		auth => '',
-	    };
-    bless $self,"IMAP::Client";
-
+	    }, $proto;
+	
+	$Instances{$self->{'ID'}} = \$self;
     # If a server was supplied, try to connect to it
     if (my $server = shift) {
 		if ($self->connect(PeerAddr => $server)) {
@@ -689,14 +694,28 @@ sub new ($){
 		return($self);
     }
 }
-
+sub DESTROY { # Undocumented: Not to be directly called
+	my $self = shift;
+	if ($Instances{$self->{'ID'}}) {
+		$self->disconnect(); # FIXME: Probably not nessesary
+		delete $Instances{$self->{'ID'}};
+		return;
+	}
+	
+	# If we reach here, we didn't find ourself, which is a seirous problem
+	warn "ERROR: Could not find self in Instances upon DESTROY - Something is seriously wrong!\n";
+	foreach my $key (keys %Instances) {
+		warn "PANIC DUMP: Instance name: ".(($Instances{$key}->{'name'}) ?  $Instances{$key}->{'name'} : "(none)")."\n";
+	}
+	die "DUMP COMPLETE: Aborting...\n\n";
+}
 
 ##### Object manipulation functions
 =pod
 
 =item B<debuglevel($level)>
 
-Set the debug level.  Valid values are 0 (for no debugging) or 1 (for a communications dump).
+Set the debug level.  Valid values are 0 (for no debugging), 1 (for a communications dump).  All debuging levels include the functionality of its lower debug levels.
 
 =cut
 
@@ -789,7 +808,7 @@ sub _imap_command ($$@) {
     my ($self,$command, @argset) = @_;
     my @fullresp;
     my $i=0;
-    return($self->throw_error("No servers defined for [$command][".join('][',@argset)."]")) unless $self->{'_active_server'};
+    return($self->throw_error("No servers defined for [$command][".join('][',@argset)."]")) unless $self->{'server'};
 
     $self->imap_send(($argset[0]) ? "$command $argset[0]" : $command);
     
@@ -909,9 +928,7 @@ sub connect($%) {
 		# connecting to Non-ssl when SSL is required by the server)
 	
 		# UNCLEAN: the server has to be preset for communications to work
-		my $prev_active_server = $self->{'_active_server'};
-		$self->{'server'}->{$args{'PeerAddr'}} = $server;
-		$self->{'_active_server'} = $args{'PeerAddr'};
+		$self->{'server'} = $server;
 		@resp = $self->imap_receive_tagless(); # collect welcome
 		if ($resp[0] && untagged_ok_response(@resp) && ok_response($self->noop())) {
 		    # Post-processing
@@ -929,17 +946,13 @@ sub connect($%) {
 		} else {
 		    $errorstr .= "$method attempt: Connection dropped upon connect\n";
 		}
-		# restore old settings (if we're successful, we'll *properly* set this up below)
-		$self->{'_active_server'} = $prev_active_server;
-		delete $self->{'server'}->{$args{'PeerAddr'}}; #probably unessesary
     }
 	    
     if (!$connected) {
 		chop($errorstr); # clip the tailing newline: we print errors without them
 		return ($self->throw_error($errorstr));
     } else {
-		$self->{'server'}->{$args{'PeerAddr'}} = $server;
-		$self->{'_active_server'} = $args{'PeerAddr'} unless ($self->{'server'});
+		$self->{'server'} = $server;
 		$self->error; # clear error logs
     }
     
@@ -950,33 +963,20 @@ sub connect($%) {
 
 =item B<disconnect($server)>
 
-Disconnect from the specified server.  Must match the server name used to connect.
+Disconnect from the server.  This command can safely be used on an already-disconnected server.
 
 =cut
 
 sub disconnect($$) {
     my ($self,$server) = @_;
 
-    return($self->throw_error("Server [$server] not found"))
-		unless $self->{'server'}->{$server};
-
-    if ($server eq $self->{'_active_server'}) {
-		# randomly choose a new one, if available
-		foreach my $key (keys %{$self->{'server'}}) {
-		    if ($key ne $server) {
-				$self->{'_active_server'} = $key;
-				last;
-		    }
-		}
-		# ensure we have a new one - if not, we are the last
-		if ($server eq $self->{'_active_server'}) {
-		    $self->{'_active_server'} = undef;
-		}
-    }
-    $self->{'server'}->{$server}->close(); # close connection
-    delete $self->{'server'}->{$server}; # remove server
-
-    return(1);
+	if ($self->{'server'}) { # If we're still connected to something...
+	    $self->{'server'}->close(); # close connection
+		undef $self->{'server'}; # remove server
+	    undef $self->{'name'}; # clear name
+	    undef $self->{'auth'}; # clear authentication info
+	    $self->{'tag'} = '*'; # Reset tag to * (for welcome message)
+	}
 }
 
 =pod 
@@ -1080,7 +1080,7 @@ sub starttls ($){
     }
     my @recv = $self->_imap_command("STARTTLS",undef);
     print "<TLS negotiations>\n" if $self->{DEBUG}; # compensation for lack of tapping into dump
-    if (IO::Socket::SSL->start_SSL($self->{'server'}->{$self->{'_active_server'}})) {
+    if (IO::Socket::SSL->start_SSL($self->{'server'})) {
 		# per RFC 3501 - 6.2.1, we must re-establish the CAPABILITY of the server after STARTTLS
 		$self->{capability} = '';
 		@recv = $self->capability();
@@ -1159,11 +1159,12 @@ Open a mailbox in read-write mode so that messages in the mailbox can be accesse
 
 =item * OK [UIDNEXT <n>]
 
-=back
 
 If the server supports an earlier version of the protocol than IMAPv4, the only flags required are FLAGS, EXISTS, and RECENT.
 
 Finally, hash responses will have an 'OK' key that will contain the current permissional status, either 'READ-WRITE' or 'READ-ONLY', if returned by the server.  Returns an empty (undefined) hash on error.
+
+IMPORTANT!  You should always check to see if an ALERT was issued.  ALERTs should be relayed to the user if they exist!
 
 =cut
 
@@ -1204,11 +1205,15 @@ For example:
 
 =cut
 
-sub create($$) {
-    my ($self,$mailbox,$properties) = @_;
+sub create($@) {
+    my ($self,$mailbox,$properties,$server) = @_;
 
     # Create mailbox
-    return undef unless ($self->_imap_command("CREATE", $mailbox)); #err already thrown
+    if ($server) {
+    	return undef unless ($self->_imap_command("CREATE", "$mailbox $server")); #err already thrown
+    } else {
+	    return undef unless ($self->_imap_command("CREATE", $mailbox)); #err already thrown
+    }
     
     # set quota (if needed)
     if ($properties->{quota}) {
