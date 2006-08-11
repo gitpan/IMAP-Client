@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="53"
+   name=""
+   committed-date="2006-06-23T14:24:33.443781Z"
+   url="http://svn.rpi.edu/svn/IMAP-Client/tags/REL-0.11/testclients"
+   last-author="conteb"
+   kind="dir"
+   uuid="509e019e-260c-0410-9c77-f04138a4a04d"
+   repos="http://svn.rpi.edu/svn/IMAP-Client"
+   revision="60"/>
+<entry
+   committed-rev="53"
+   name="runtests.pl"
+   text-time="2006-08-11T14:25:41.000000Z"
+   committed-date="2006-06-23T14:24:33.443781Z"
+   checksum="a8d2971861dc5c86b23860f87c17ef5f"
+   last-author="conteb"
+   kind="file"
+   prop-time="2006-08-11T14:25:41.000000Z"/>
+<entry
+   committed-rev="41"
+   name="admintest.pl"
+   text-time="2006-08-11T14:25:41.000000Z"
+   committed-date="2006-05-31T14:42:58.681291Z"
+   checksum="7afdbcda83178378110e973811acf686"
+   last-author="conteb"
+   kind="file"
+   prop-time="2006-08-11T14:25:41.000000Z"/>
+<entry
+   committed-rev="41"
+   name="usertest.pl"
+   text-time="2006-08-11T14:25:41.000000Z"
+   committed-date="2006-05-31T14:42:58.681291Z"
+   checksum="f49ccbfc629b9451d5ac6199405d5daf"
+   last-author="conteb"
+   kind="file"
+   prop-time="2006-08-11T14:25:41.000000Z"/>
+<entry
+   committed-rev="8"
+   name="README"
+   text-time="2006-08-11T14:25:41.000000Z"
+   committed-date="2006-03-01T13:26:42.223359Z"
+   checksum="fe5cb51ac61a5b72857c304382208747"
+   last-author="conteb"
+   kind="file"
+   prop-time="2006-08-11T14:25:41.000000Z"/>
+</wc-entries>

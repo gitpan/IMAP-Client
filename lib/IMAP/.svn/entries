@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="59"
+   name=""
+   committed-date="2006-08-11T14:22:57.944624Z"
+   url="http://svn.rpi.edu/svn/IMAP-Client/tags/REL-0.11/lib/IMAP"
+   last-author="conteb"
+   kind="dir"
+   uuid="509e019e-260c-0410-9c77-f04138a4a04d"
+   repos="http://svn.rpi.edu/svn/IMAP-Client"
+   revision="60"/>
+<entry
+   committed-rev="59"
+   name="Client.pm"
+   text-time="2006-08-11T14:25:41.000000Z"
+   committed-date="2006-08-11T14:22:57.944624Z"
+   checksum="b6bba759d1eafde25a0f2fa680f4e20d"
+   last-author="conteb"
+   kind="file"
+   prop-time="2006-08-11T14:25:41.000000Z"/>
+</wc-entries>
