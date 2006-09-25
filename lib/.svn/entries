@@ -2,15 +2,15 @@
 <wc-entries
    xmlns="svn:">
 <entry
-   committed-rev="59"
+   committed-rev="65"
    name=""
-   committed-date="2006-08-11T14:22:57.944624Z"
-   url="http://svn.rpi.edu/svn/IMAP-Client/tags/REL-0.11/lib"
+   committed-date="2006-09-25T15:39:23.814151Z"
+   url="http://svn.rpi.edu/svn/IMAP-Client/tags/REL-0.12/lib"
    last-author="conteb"
    kind="dir"
    uuid="509e019e-260c-0410-9c77-f04138a4a04d"
    repos="http://svn.rpi.edu/svn/IMAP-Client"
-   revision="60"/>
+   revision="68"/>
 <entry
    name="IMAP"
    kind="dir"/>

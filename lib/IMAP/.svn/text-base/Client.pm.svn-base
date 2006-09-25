@@ -1,8 +1,12 @@
 # IMAP::Client -low-level advanced IMAP manipulation w/ referral support
 #
 # Copyright (c) 2005 Brenden Conte <conteb@cpan.org>, All Rights Reserved
-# Version 0.01
 #
+
+use strict;
+use warnings;
+#use diagnostics;
+
 
 package IMAP::Client;
 
@@ -12,10 +16,6 @@ use MIME::Base64;
 use URI::imap;
 use URI::Escape;
 
-use strict;
-use warnings;
-#use diagnostics;
-
 use Exporter;
 
 
@@ -24,7 +24,7 @@ $|=1;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw( Exporter );
-$VERSION = "0.11";
+$VERSION = "0.12";
 @EXPORT = qw ();
 @EXPORT_OK = qw();
 %EXPORT_TAGS = ();
@@ -126,6 +126,17 @@ This module also tries to follow the various RFCs for IMAPrev1 communications ve
 =item * RFC 3691 - Internet Message Access Protocol (IMAP) UNSELECT command (Not directly supported yet)
 
 =back
+
+In addition, the following drafts functionalities are also included.  While functionality is included for these drafts (because a server is using them), drafts expire after 6 months, and thus functionality from the server side may be spotty at best.
+
+=over 4
+
+=item * draft-ietf-imapext-annotate-15 - IMAP ANNOTATE Extension (Not directly supported yet)
+
+=item * draft-daboo-imap-annotatemore-08 - IMAP ANNOTATEMORE Extension (Partial in 0.12 - GETANNOTATION works)
+
+=back
+
 
 =head1 DEFINITIONS
 
@@ -274,6 +285,11 @@ my $nparens = qr/\((?:(?>[^()]+)|(??{$parens}))*\)|NIL/s;
 my $string = '\"[^\"]+\"';
 my $nstring = "(?:$string|NIL)";
 my $number = '\d+';
+sub quote_once ($) {
+	my $string = shift;
+	$string = "\"$string\"" unless ($string =~ /^\".*\"$/); # Quote if its not already quoted
+	return($string);
+}
 sub dequote($) {
     return(undef) unless $_[0];
     if ($_[0] eq "NIL") { return undef; }
@@ -431,29 +447,12 @@ sub parse_body_structure ($$) {
 		return(%ret);
     }
 }
-sub extract_body($$) {
-    my ($text,$length) = @_;
-    $length =~ s/^\{(\d+)\}$/$1/; # extract body length
-    my ($body) = ($text =~ /^\r\n(.{$length})/s); # extract length of body
-    return($body);
-}
-sub parse_search (@) {
-    my (@resp) = @_;
-    my @results = ();
-    # find SEARCH line and process results
-    foreach my $line (@resp) {
-        next unless ($line =~ s/^\*\s+SEARCH\s+([\d+\s]+)\s*\r\n$/$1/);
-		@results = split(/ /,$line);
-		last; # theres only 1 line
-    }
-    return(wantarray ? @results : @results ? sequencify(@results) : undef );
-}
-use re 'eval';
-sub parse_fetch ($@) {
-    my ($self,@resp) = @_;
-    return(undef) unless ($resp[0]);
 
-    # Load up hash with fetch results (one entry per * tag FETCH)
+sub parse_fetch($@) {
+   my ($self, @resp) = @_;
+
+	### Parse out fetch response into internal structure	
+	# Load up hash with fetch results (one entry per * tag FETCH)
     my %fetchsets;
     my $msgid = -1;
     foreach my $line (@resp) {
@@ -468,18 +467,18 @@ sub parse_fetch ($@) {
 		}
     }
 
-    $self->dprint(0x2, "-- parse_fetch: Fetch count: ".scalar(keys %fetchsets)."\n");
+    $self->dprint(0x02, "-- parse_fetch: Fetch count: ".scalar(keys %fetchsets)."\n");
     my %results;
 
-	#$self->dprint(0x2, "-- parse_fetch: evaluating [$fetchset]\n");
+	#$self->dprint(0x02, "-- parse_fetch: evaluating [$fetchset]\n");
 
     # find FETCH lines and process results
 	foreach my $msgid (keys %fetchsets) {
-		$self->dprint(0x2, "-- parse_fetch: Parsing FETCH response [$fetchsets{$msgid}]\n");
+		$self->dprint(0x02, "-- parse_fetch: Parsing FETCH response [$fetchsets{$msgid}]\n");
 		my %ret;
 		my $len = length($msgid)+10; # get length of just-extracted line
 		$fetchsets{$msgid} = substr($fetchsets{$msgid}, $len); # remove fetch line from the remainder of the FETCH response
-		$self->dprint(0x2, "-- parse_fetch: FETCH response after FETCH line removed: [$fetchsets{$msgid}]\n");
+		$self->dprint(0x02, "-- parse_fetch: FETCH response after FETCH line removed: [$fetchsets{$msgid}]\n");
 		# Break into hash (unfortunately, we can't do it inline regexp, since thre is a 32765 char limit on {min,max}. grr)
 		my %result_entries;
 		while ($fetchsets{$msgid}) {
@@ -546,6 +545,25 @@ sub parse_fetch ($@) {
     die "*****************************WARNING: results are empty!************************\n" unless (%results);
     return(%results);
 }
+sub extract_body($$) {
+    my ($text,$length) = @_;
+    $length =~ s/^\{(\d+)\}$/$1/; # extract body length
+    my ($body) = ($text =~ /^\r\n(.{$length})/s); # extract length of body
+    return($body);
+}
+sub parse_search (@) {
+    my (@resp) = @_;
+    my @results = ();
+    # find SEARCH line and process results
+    foreach my $line (@resp) {
+        next unless ($line =~ s/^\*\s+SEARCH\s+([\d+\s]+)\s*\r\n$/$1/);
+		@results = split(/ /,$line);
+		last; # theres only 1 line
+    }
+    return(wantarray ? @results : @results ? sequencify(@results) : undef );
+}
+use re 'eval';
+
 sub fill_permissions($) {
     my $hash = shift;
     # map short answers to long
@@ -615,7 +633,7 @@ sub imap_send ($$) {
     my $tag = sprintf("%04i",++$self->{tag});
     chomp($string);
 
-    $self->dprint(0x1, ">> $tag $string\r\n");
+    $self->dprint(0x01, ">> $tag $string\r\n");
     print $server "$tag $string\r\n";
 
     $self->{tag} = $tag;
@@ -634,7 +652,7 @@ sub imap_send_tagless ($$) {
 #    return($self->throw_error("No servers defined for [$string]")) unless $self->{'server'};
     my $server = $self->{'server'};
 
-    $self->dprint(0x1, ">> $string\r\n");
+    $self->dprint(0x01, ">> $string\r\n");
     print $server "$string\r\n";
 }
 
@@ -653,7 +671,7 @@ sub imap_receive($) {
     my (@r, $_t);
     do {
 		$_t = $self->{'server'}->getline; 
-		$self->dprint(0x1, "<< $_t");
+		$self->dprint(0x01, "<< $_t");
 		push (@r, $_t);
     } until ($_t =~ /^$self->{tag}/);
 	if ($#r < 1) {
@@ -675,7 +693,7 @@ sub imap_receive_tagless($) {
     my ($self) = @_;
     my $_t;
     $_t = $self->{'server'}->getline; 
-    $self->dprint(0x1, "<< $_t") if ($_t);
+    $self->dprint(0x01, "<< $_t") if ($_t);
     return ($_t);
 }
 
@@ -762,7 +780,7 @@ Set the debug level.  Debug levels are set on a bitmask, and all debug output is
 
 =over 4
 
-=item B<0x1 - Communications dump>
+=item B<0x01 - Communications dump>
 
 =over 2
 
@@ -770,11 +788,19 @@ This will output all IMAP communications, with >> showing the sent data, and << 
 
 =back
 
-=item B<0x2 - Fetch-parsing dump>
+=item B<0x02 - Fetch-parsing dump>
 
 =over 2
 
 This dumps a *lot* of data about the parsing of a fetch statement.  
+
+=back
+
+= item B<0x04 - Annotations dump>
+
+=over 2
+
+This will print debugging information about processing getannotations and setannotations\n";
 
 =back
 
@@ -936,7 +962,9 @@ sub _imap_command ($$@) {
 				}
 	    	}
 		} else {
-		    return($self->throw_error("No response from server"));
+			# We got nothing back.... ?  we must have been disconnected
+			$self->disconnect();
+			return($self->throw_error("Disconnected\n"));
 		}
     }
     
@@ -1029,7 +1057,7 @@ sub connect($%) {
 		if ($resp[0] && untagged_ok_response(@resp) && ok_response($self->noop())) {
 		    # Post-processing
 		    if ($method eq 'STARTTLS') {
-				if ($self->starttls()) {
+				if ($self->starttls(%args)) {
 				    $connected = 'ok';
 				    last;
 				} else {
@@ -1057,14 +1085,14 @@ sub connect($%) {
 
 =pod
 
-=item B<disconnect($server)>
+=item B<disconnect()>
 
 Disconnect from the server.  This command can safely be used on an already-disconnected server.
 
 =cut
 
-sub disconnect($$) {
-    my ($self,$server) = @_;
+sub disconnect($) {
+    my ($self) = @_;
 
 	if ($self->{'server'}) { # If we're still connected to something...
 	    $self->{'server'}->close(); # close connection
@@ -1180,25 +1208,28 @@ sub logout() {
 
 =pod
 
-=item B<starttls()>
+=item B<starttls(%args)>
 
 Issue a STARTTLS negotiation to secure the data connection.  This function will call capability() twice - once before issuing the starttls() command to verify that the atom STARTTLS is listed as a capability(), and once after the sucessful negotiation, per RFC 3501 6.2.1.  See capability() for unique rules on how this module handles capability() requests.  Upon successful completion, the connection will be secured.  Note that STARTTLS is not available if the connection is already secure (preivous sucessful starttls(), or connect() via SSL, for example).
 
 STARTTLS is checked in capability() regardless of the value of capability_checking().
 
+Any call arguments in %args are passed onto the underlying IO::Socket::SSL->start_SSL() function.
+
 This function returns 1 on success, since there is no output to return on success.  Failures are treated normally.
 
 =cut
 
-sub starttls ($){
-    my ($self) = @_;
+sub starttls ($%){
+    my ($self, %args) = @_;
 
     unless ($self->check_capability('STARTTLS')) {
 		return($self->throw_error("STARTTLS not found in CAPABILITY"));
     }
     my @recv = $self->_imap_command("STARTTLS",undef);
-    $self->dprint(0x1, "<TLS negotiations>\n"); # compensation for lack of tapping into dump
-    if (IO::Socket::SSL->start_SSL($self->{'server'})) {
+    $self->dprint(0x01, "<TLS negotiations>\n"); # compensation for lack of tapping into dump
+    $args{SSL_version} ||= 'TLSv1';
+    if (IO::Socket::SSL->start_SSL($self->{'server'}, %args)) {
 		# per RFC 3501 - 6.2.1, we must re-establish the CAPABILITY of the server after STARTTLS
 		$self->{capability} = '';
 		@recv = $self->capability();
@@ -1277,6 +1308,7 @@ Open a mailbox in read-write mode so that messages in the mailbox can be accesse
 
 =item * OK [UIDNEXT <n>]
 
+=back
 
 If the server supports an earlier version of the protocol than IMAPv4, the only flags required are FLAGS, EXISTS, and RECENT.
 
@@ -1289,8 +1321,7 @@ IMPORTANT!  You should always check to see if an ALERT was issued.  ALERTs shoul
 sub select($$) {
     my ($self,$mailbox) = @_;
     # Don't add quotes around mailbox if they already exist
-	$mailbox = "\"$mailbox\"" unless ($mailbox =~ /^\".*\"$/);
-    return(parse_select_examine($self->_imap_command("SELECT", $mailbox)));
+    return(parse_select_examine($self->_imap_command("SELECT", quote_once($mailbox))));
 }
 
 =pod
@@ -1303,8 +1334,7 @@ Identical to select(), except the mailbox is opened READ-ONLY.  Returns an empty
 
 sub examine($$) {
     my ($self,$mailbox) = @_;
-	$mailbox = "\"$mailbox\"" unless ($mailbox =~ /^\".*\"$/);
-    return(parse_select_examine($self->_imap_command("EXAMINE", $mailbox)));
+    return(parse_select_examine($self->_imap_command("EXAMINE", quote_once($mailbox))));
 }
 
 =pod
@@ -1433,7 +1463,7 @@ List all the local mailboxes the authorized user can see for the given mailbox f
 
 sub list($$$) {
     my ($self,$reference,$mailbox) = @_;
-    my @result = $self->_imap_command("LIST", "\"$reference\" \"$mailbox\"");
+    my @result = $self->_imap_command("LIST", quote_once($reference).' '.quote_once($mailbox));
     return(undef) unless ($result[0]);
     return(parse_list_lsub(@result));
 }
@@ -1448,7 +1478,7 @@ List all the local subscriptions for the authorized user for the given mailbox f
 
 sub lsub($$$) {
     my ($self,$reference,$mailbox) = @_;
-    my @result = $self->_imap_command("LSUB", "\"$reference\" \"$mailbox\"");
+    my @result = $self->_imap_command("LSUB", quote_once($reference).' '.quote_once($mailbox));
     return(undef) unless ($result[0]);
     return(parse_list_lsub(@result));
 }
@@ -1684,12 +1714,12 @@ The return value is a hash of nested hashes.  The first level of hashes represen
 This is a complex method for a data-rich command.  Here are some examples to aid in your understanding:
 
 This command is equivilant to `xxx FETCH 1 (BODY[1] BODY.PEEK[HEADER.FIELDS (FROM SUBJECT TO DATE X-STATUS) RFC822.SIZE FLAGS]`:
-$imap->fetch(1,({header=>'MATCH', headerfields=>'FROM SUBJECT TO DATE X-STATUS ', peek=>1},
-                {body=>1, offset=>1024, length=>4000}),
-               qw(RFC822.SIZE FLAGS)));
+$imap->fetch(1,[{header=>'MATCH', headerfields=>'FROM SUBJECT TO DATE X-STATUS ', peek=>1},
+                {body=>1, offset=>1024, length=>4000}],
+               qw(RFC822.SIZE FLAGS));
 
 
-FIXME: elaborate?  examples, maybe?
+Please see the "Fetch Response Tutorial" at the bottom of this document.
     
 =cut
 
@@ -1700,7 +1730,7 @@ sub fetch ($$@) {
 
     my $fetchstring = $self->buildfetch($bodies,join(' ',@other));
     return($self->throw_error("Invalid fetch string: <empty>")) unless ($fetchstring);
-
+    
     return($self->parse_fetch($self->_imap_command("FETCH","$sequence $fetchstring")));
 }
 
@@ -1877,14 +1907,14 @@ sub deleteacl ($$$) {
 
 =item B<getacl($mailbox)>
 
-Get the access control list for the supplied mailbox. Returns a two-level hash, with the first level consisting of userIDs, and the second level consisting of the permissions for the parent userID.
+Get the access control list for the supplied mailbox. Returns a two-level hash, with the first level consisting of userIDs, and the second level consisting of a hash of the permissions for the parent userID, in both short and long form.
 
 =cut
 
 sub getacl ($$) {
     my ($self, $mailbox) = @_;
     my @resp = $self->_imap_command("GETACL", $mailbox);
-    return(undef) unless ($resp[0]);
+    return(()) unless ($resp[0]);
 
     my %permissions;
     foreach my $line (@resp) {
@@ -1950,7 +1980,7 @@ Get the list of access controls that may be granted to the supplied user for the
 sub listrights($$$) {
     my ($self, $mailbox, $user) = @_;
     my @resp = $self->_imap_command("LISTRIGHTS", "$mailbox $user");
-    return(undef) unless ($resp[0]);    
+    return(()) unless ($resp[0]);    
     
     my %permissions;
     foreach my $line (@resp) {
@@ -1967,14 +1997,14 @@ sub listrights($$$) {
 
 =item B<myrights($mailbox)>
 
-Get the access control list information for the currently authorized user's access to the supplied mailbox.
+Get the access control list information for the currently authorized user's access to the supplied mailbox.  Returns a hash of the permissions available, in both short and long form.
 
 =cut
 
 sub myrights($$) {
     my ($self, $mailbox) = @_;
     my @resp = $self->_imap_command("MYRIGHTS", $mailbox);
-    return(undef) unless ($resp[0]);
+    return(()) unless ($resp[0]);
 
     my %permissions;
     foreach my $line (@resp) {
@@ -2064,7 +2094,7 @@ Unless overridden, rlist will check for the MAILBOX-REFERRALS capability() atom 
 sub rlist($$$) {
     my ($self,$reference,$mailbox) = @_;
     return($self->throw_error("MAILBOX-REFERRALS not supported for RLIST command")) unless ($self->check_capability('MAILBOX-REFERRALS'));
-    my @result = $self->_imap_command("RLIST", "\"$reference\" \"$mailbox\"");
+    my @result = $self->_imap_command("RLIST", quote_once($reference).' '.quote_once($mailbox));
     return(undef) unless ($result[0]);
     return(parse_list_lsub(@result));
 }
@@ -2086,7 +2116,7 @@ Unless overridden, rlsub will check for the MAILBOX-REFERRALS capability() atom 
 sub rlsub($$$) {
     my ($self,$reference,$mailbox) = @_;
     return($self->throw_error("MAILBOX-REFERRALS not supported for RLSUB command")) unless ($self->check_capability('MAILBOX-REFERRALS'));
-    my @result = $self->_imap_command("RLSUB", "\"$reference\" \"$mailbox\"");
+    my @result = $self->_imap_command("RLSUB", quote_once($reference).' '.quote_once($mailbox));
     return(undef) unless ($result[0]);
     return(parse_list_lsub(@result));
 }
@@ -2165,7 +2195,7 @@ sub id($%) {
 		    if (length($perams{$key}) > 1024) {# defined in RFC section 3.3
 				return($self->throw_error("Client value [$perams{$key}] too long: ".length($perams{$key}).", max 1024 bytes"));
 		    }
-		    $peramlist .= "\"$key\" \"$perams{$key}\" ";
+		    $peramlist .= quote_once($key).' '.quote_once($perams{$key}).' ';
 		}
 		chop $peramlist; # rid ourselves of the last space
 		$peramlist .= ')'; #overwrite last space with )
@@ -2176,14 +2206,180 @@ sub id($%) {
     return($self->_imap_command("ID",$peramlist));
 }
 
-########## nonstandard Cyrus IMAP commands ##########
-sub mboxcfg {} #rename?
-sub setinfo {} #rename?
-sub ver {} #rename?
-sub xfer {} #rename?
+########## draft-ietf-imapext-annotate-15 ##########
 
+=pod
 
+=item B<getannotation($mailbox, $entry_specifier, $attribute_specifier)>
 
+Retrieve annotations on a mailbox from the server.  If the mailbox argument is empty, it will retrieve global server annotations instead.
+
+The entry specifier indicates which type of annotation you will retrieve.  the "*" wildcard is valid for retrieving all annotations, while the "%" wildcard will match all text except the hierarchy delimiter '/'.
+
+As of draft-ietf-imapext-annotate-15, valid global entries are:
+
+=over 4
+
+=item * /comment
+
+Defines a comment or note associated with the server
+
+=item * /motd
+
+Defines a "message of the day" for the server (Read-Only)
+
+=item * /admin
+
+Indicates a method for contacting the server administrator (Read-Only)
+
+=item * /vendor/<vendor-token>
+
+Defines the top-level of entries associated with the server as created by a particular product of some vendor.  Vendor tokens are registered with IANA, using the ACAP [RFC2244] vendor subtree registry.
+
+=back
+
+... and the mailbox entries are ...
+
+=over 4 
+
+=item * /comment
+
+Defines a per-mailbox comment, connected with the specified mailbox
+
+=item * /sort 
+
+Defines the default sort criteria [I-D.ietf-imapext-sort] to use when first displaying the mailbox contents to the user, or NIL if sorting is not required.
+
+=item * /thread
+
+Defines the default thread criteria [I-D.ietf-imapext-sort] to use when first displaying the mailbox contents to the user, or NIL if threading is not required.  This takes precidence over the /sort annotation.
+
+=item * /check
+
+A true/false value that indicates whether this mailbox should be checked at regular intervals by the client.
+
+=item * /checkperiod
+
+if /check is true, this numberic value indicates a period of minutes that the client should check the mailbox.
+
+=item * /vendor/<vendor-token>
+
+Identical to the global version, except they apply only to the specified mailbox.
+
+=back
+
+The attribute specifier indicates which part of the annotation you wish to receive.  As of draft-ietf-imapext-annotate-15, valid global attributes are
+
+=over 4
+
+=item * /value
+
+String or binary data representing the value of the annotation.  NIL can be stored to delete an annotation.  Text value sshould use the utf-8 character set.  Binary data uses the "literal8" syntax element [I-D.melnikov-imap-ext-abnf] to store and retreive such data.
+
+=item * /size
+
+the size, in octets, of the value. (Read-only)
+
+=item * /content-language
+
+Language used for the value.  This SHOULD be set if the value stored is textual.
+
+=back
+
+In addition, all attributes have a '.priv' and a '.shared' suffix, meaning private and shared, respecitvly.  If neither attribute suffix is specified, both will be retrieved (if allowed).
+
+Returns a nested hash reference with the mailbox name as the first layer, the entry as the second layer, the attribute name in the third layer.
+
+Structure example:
+
+=over 2
+
+$r{<mailbox>}->{<tag>}->{<attribute>} = value
+
+=back
+
+=cut
+
+sub parse_annotation ($$$) {
+	my ($resp,$mailbox,$self) = @_; # self last so its not seen by the user as a 'call'
+
+	# Parse the results
+	my %results = ($mailbox => undef);
+	foreach my $line (@{$resp}) {
+		$line =~ s/[\r\n]//gs; # Remove newlines
+		my ($more) = $line =~ /\s*\*\s+ANNOTATION\s+\"?$mailbox\"?\s+(.*)$/; #"
+		while ($more) {
+			$self->dprint(0x04, "getannotation processing with [$more]\n");
+			my ($entry, $attrset, $less) = $more =~ /\"?([^\"\s]+)\"?\s+($parens)(.*)/; #"
+			$self->dprint(0x04, "getannotation found entry [$entry], attrset [$attrset], and less [$less]\n");
+			my $attrs_href = parse_parameters($attrset);
+
+			$results{$mailbox}->{$entry} = $attrs_href;
+			$more = $less;
+		}
+	}
+	return(%results);
+}
+sub getannotation($$$$) {
+	my ($self, $mailbox, $entry, $attribute) = @_;
+	unless ($self->check_capability('ANNOTATEMORE') || $self->check_capability('ANNOTATEMORE2')) {
+		$self->throw_error("ANNOTATEMORE or ANNOTATEMORE2 not supported for GETANNOTATE command");
+	}
+	
+	# Execute
+	my @resp = $self->_imap_command("GETANNOTATION", quote_once($mailbox).' '.quote_once($entry).' '.quote_once($attribute));
+	return(()) unless ($resp[0]);
+	
+	my %parse_annotation = parse_annotation(\@resp,$mailbox,$self);
+	
+	return (%parse_annotation)
+}
+
+=pod
+
+=item B<setannotation($mailbox, $mailbox, \%annoation_hash)>
+
+Set annotations on a mailbox from the server.  If the mailbox argument is empty, it will attempt to set global server annotations instead.
+
+For details on annotations and its arguments, see the getannotation() command.
+
+The setannotation() command only accepts annotations for one mailbox at a time - as a result, the setannotation() command accepts a mailbox argument and an attribute tree, rather than the entire annotation hash that getannotation returns.  
+
+As a result, setannotation takes the same type of hash that getannotation returns, except starting at the mailbox level.  For example, the hash must be in the form of
+
+=over 2
+
+$r{<tag>}->{<attribute>} = value
+
+=back
+
+The the first level is for which tags to set, and the second level is what attributes those tags will have, while the value is the actual value to assign.
+
+One key difference between the getannotation() and setannotation() hashes is that the setannotation() mailbox can contain a wildcard - for example, setting 'INBOX.%' as the mailbox will add an annotation for all mailboxes at the top-level of the INBOX hierarchy.
+
+=cut
+
+sub setannotation($$$) {
+	my ($self, $mailbox, $tagset) = @_;
+		unless ($self->check_capability('ANNOTATEMORE') || $self->check_capability('ANNOTATEMORE2')) {
+		$self->throw_error("ANNOTATEMORE or ANNOTATEMORE2 not supported for GETANNOTATE command");
+	}
+	
+	my $tagset_str;
+	
+	foreach my $tag (keys %{$tagset}) {
+		$tagset_str .= quote_once($tag) . ' (';
+		foreach my $attribute (keys %{$tagset->{$tag}}) {
+			$tagset_str .= quote_once($attribute).' '.quote_once($tagset->{$tag}->{$attribute}).' ';
+		}
+		chop($tagset_str);
+		$tagset_str .= ') ';
+	}
+	chop($tagset_str);
+	
+	
+	return($self->_imap_command("SETANNOTATION", quote_once($mailbox).' '.$tagset_str));
+}
 
 =pod
 
@@ -2386,12 +2582,12 @@ sub buildfetch($$$) {
 	
 		my $bodystr='';
 		if ($body->{'header'}) {
-		    if ($body->{'header'} eq 'ALL') {
+		    if (uc($body->{'header'}) eq 'ALL') {
 				$bodystr .= 'HEADER ';
-		    } elsif ($body->{'header'} eq 'MATCH') {
+		    } elsif (uc($body->{'header'}) eq 'MATCH') {
 				return($self->throw_error("headerfields not defined for MATCH in buildfetch")) unless ($body->{headerfields});
 				$bodystr .= 'HEADER.FIELDS ('.$body->{headerfields}.') ';
-		    } elsif ($body->{'header'} eq 'NOT') {
+		    } elsif (uc($body->{'header'}) eq 'NOT') {
 				return($self->throw_error("headerfields not defined for NOT in buildfetch")) unless ($body->{headerfields});
 				$bodystr .= 'HEADER.FIELDS.NOT ('.$body->{headerfields}.') ';
 		    }
@@ -2595,6 +2791,88 @@ sub parse_referral() { #FIXME: needs wider testing
 =item * UNSEEN - Messages that do not have the \Seen flag set.
 
 =back
+
+=head1 FETCH RESPONSE TUTORIAL
+
+The response to the fetch command is a tree of hash references pointing to other hash references in a tree-like structure.  Going into this module and using fetch without an understanding about how the results come back is at least frustrationg and at worst futile.  This section is meant to clear some of the potential confusion up, and for you to understand exactly where the data you want is stored.
+
+The fetch response is stored in a tree structure of hash references.  This means that it will not be uncommon for you to have ugly-looking statements like such strewn throughout your code:
+
+=over 2
+
+$fetch{$msgid}->{BODY}->{2}->{HEADER}->{BODY}
+
+=back
+
+By the end of this tutorial, you will hopefully understand exactly what that top statement means.
+
+To understand where this structure comes from, you need to understand the structure that RFC3506 defines parts of a message.  An example from the RFC looks like this:
+
+=over 4
+
+       HEADER     ([RFC-2822] header of the message)
+       TEXT       ([RFC-2822] text body of the message) MULTIPART/MIXED
+       1          TEXT/PLAIN
+       2          APPLICATION/OCTET-STREAM
+       3          MESSAGE/RFC822
+       3.HEADER   ([RFC-2822] header of the message)
+       3.TEXT     ([RFC-2822] text body of the message) MULTIPART/MIXED
+       3.1        TEXT/PLAIN
+       3.2        APPLICATION/OCTET-STREAM
+       4          MULTIPART/MIXED
+       4.1        IMAGE/GIF
+       4.1.MIME   ([MIME-IMB] header for the IMAGE/GIF)
+       4.2        MESSAGE/RFC822
+       4.2.HEADER ([RFC-2822] header of the message)
+       4.2.TEXT   ([RFC-2822] text body of the message) MULTIPART/MIXED
+       4.2.1      TEXT/PLAIN
+       4.2.2      MULTIPART/ALTERNATIVE
+       4.2.2.1    TEXT/PLAIN
+       4.2.2.2    TEXT/RICHTEXT
+
+=back
+
+This example is rather complicated, but it gets the point across that this is no small feat.  From the top, you can see that the HEADER and the TEXT are seperate pieces for the main message that was delivered, and thus can be retrieved as such.  1, 2, and 3 specify different sections of the email message - part 1 is a plain text email (the acutal text that was written to you), while part 2 is an OCTET-STREAM, perhaps a binary attachment to the email.  The 3rd message is defined as an RFC822 - a bounce message.  The bounce message (3), naturally has its own HEADER, and TEXT parts, along with an email with an attachment (the RFC822 bounce message included the original email, and all its attachments!).  This goes on, and as you can see with part 4, the nesting can be quite deep, depending on if the email is multi-part (i.e. both plain-text and HTML), and/or if attachments have attachments, etc.
+
+Now, lets look at a concrete example.  Lets say that we received a plain-text email with a forwarded email as an attachment.  This would mean that the message contains 2 parts, and, for the sake of argument, we know this ahead of time.  The command to retrieve the header of the forwarded message would be 
+
+=over 4
+
+my %fetch = $imap->fetch($sequence, {'body' => '2.header'});
+
+=back
+
+For this example, however, we're going to retrieve the entire message, but still seek out the forwarded message's header
+
+=over 4
+
+my %fetch = $imap->fetch($sequence, {});
+
+=back 
+
+where $imap is a connected IMAP::Client instance, and $sequence has the message ID we are looking for.
+
+Now, we need to retrieve the data that the IMAP server do dutifully sent to us, and this is where we get grease on our hands and learn exactly how to traverse a fetch response.
+
+The first level of a fetch response is always the message ID of the message, and is the only level that is *not* a reference.  This allows the fetch command to retrieve multiple message within a single command (i.e. using the sequence of '1:*' will retrieve all messages in the mailbox), and still present the data in a managable fasion.
+
+Lets say that $sequence was the message '1234'.  In order to reach the base of the message we are looking to retrieve the data from, we now need to access $fetch{1234}.  Everything below here is information about our message.
+
+Next, we will need to navigate to the area of the tree that will contain the data.  The data we are looking for will *always* be in the same place, no matter if we retrieved the entire message, half the message, or just that one single peice of data, like the first example - if it was retreived, it will be in its specified place.  This the key design feature of the fetch return structure.  
+
+At this level ($fetch{1234}), we can access anything about the main message.  We are looking at the message from the outside, what you would normally see in your email client when you first opened a message.  We can look at things like the date of the message, the flags set on this message by the imap server, the UID of the message, the envelope of the message, etc.
+
+In this case, we're not interested in the main message, however.  We want to retrieve the header of the forwarded message, so we need to go into the BODY of the message.  To get there, we're now at $fetch{1234}->{BODY}.  IMAP::Client uses the {BODY} reference to seperate it from the other aspects of the main message, incidcating its a result from a BODY fetch query.   The BODY section also contains various peices of information, depending on what the CONTENTTYPE of the message is - for things like MULTIPART/ALTERNATIVE (which means the message comes in multiple forms, like plain text and HTML), there simply isn't much information to relay, since that content type is basically just a container for the two message formats.  If the section is part of the actual message (rather than just a container) - for example a PLAIN/TEXT part, things like SIZE for the size of the message, LINES for number of lines in the message, and even the ENCODING and extra PARAMETERS are available.  
+
+Now that we're in the body, we can look at things like the content type of this particular piece of the email.  Again, we're not interested in whats here.  What we want is the second part of this body, the attachment part.  The main body of the email that was sent is located in $fetch{1234}->{BODY}->{1}, and the attachment is located at $fetch{1234}->{BODY}->{2}.  (See how the fetch structure reflects the IMAP structure of the message).  Had there been more attachments or parts, there would have been more parts we could traverse, like $fetch{1234}->{BODY}->{3}.
+
+Now at $fetch{1234}->{BODY}->{2}, we're in the section of the message we are interested in.  Here we can find out information about the part we're in.  This part is essentially identical to the first {BODY} part, only representing a subset of the mesage that {BODY} represented.
+
+Now that we're here, we want the header for this part, which gives us $fetch{1234}->{BODY}->{2}->{HEADER}.  We're not done yet, however, as there is still information about the HEADER available, like the SIZE.  If we want the acutal HEADER body of the header, rather than a piece of information about it, we need to go one level deeper, to $fetch{1234}->{BODY}->{2}->{HEADER}->{BODY}.  This is the value that will allow you to retreive the header of the forward that was sent in an attachment.  
+
+
+
+In the last example, we assumed that we already knew the struture of the email.  In real life, this is almost never the case.  If you need to know what the structure of a message looks like so you can extract a small piece of it, you can use the BODYSTRCUTRE command, which is structured simiilarly to the BODY command.  If we use the example above, then we can traverse the BODYSTRUCTURE information by going to $fetch{1234}->{BODYSTRUCTURE}.  From here, you can explore and poke around to see exactly what the structure is that the message has.  The acutal data within a BODYSTRUCTURE is basically all the flags you would see when youre in a part - like the content  type, size, lines, etc - but without any of the acutal message.  As its name implies, its mainly for determining the structure and *type* of the message and its subparts.  Part numbers are always sequential.
 
 =head1 AUTHOR/COPYRIGHT
 

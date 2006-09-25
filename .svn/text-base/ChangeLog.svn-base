@@ -1,3 +1,12 @@
+2007-09-25	Brenden Conte  <conteb@cpan.org>
+	* 0.12 - Release
+	* Added getannotatin/getannotation support with extensive POD.
+	* Added debug bit 0x04, debugging annotations
+	* Fixed disconnection detection in _imap_command()
+	* Created Fetch Response Tutorial documentation
+	* Updated some examples for proper syntax
+	* Fixed TLS to accept SSL-specific args
+
 2006-08-31  Brenden Conte  <conteb@cpan.org>
 	* 0.11 - Release
 	* Adjusted select, examine to not add quotes around mailbox if quotes already exist

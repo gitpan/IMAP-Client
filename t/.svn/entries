@@ -2,85 +2,94 @@
 <wc-entries
    xmlns="svn:">
 <entry
-   committed-rev="52"
+   committed-rev="63"
    name=""
-   committed-date="2006-06-23T14:23:33.753445Z"
-   url="http://svn.rpi.edu/svn/IMAP-Client/tags/REL-0.11/t"
+   committed-date="2006-09-21T17:47:21.911040Z"
+   url="http://svn.rpi.edu/svn/IMAP-Client/tags/REL-0.12/t"
    last-author="conteb"
    kind="dir"
    uuid="509e019e-260c-0410-9c77-f04138a4a04d"
    repos="http://svn.rpi.edu/svn/IMAP-Client"
-   revision="60"/>
+   revision="68"/>
 <entry
    committed-rev="1"
    name="05sequence.t"
-   text-time="2006-08-11T14:25:41.000000Z"
+   text-time="2006-09-25T15:49:15.000000Z"
    committed-date="2006-02-06T21:05:35.961964Z"
    checksum="ac1275d4ebce857edc90acaa5d050572"
    last-author="conteb"
    kind="file"
-   prop-time="2006-08-11T14:25:41.000000Z"/>
+   prop-time="2006-09-25T15:49:15.000000Z"/>
 <entry
    committed-rev="17"
    name="07searchresults.t"
-   text-time="2006-08-11T14:25:41.000000Z"
+   text-time="2006-09-25T15:49:15.000000Z"
    committed-date="2006-03-01T16:00:46.089852Z"
    checksum="73b2ad4a74ce5ad2ced46c68d5848229"
    last-author="conteb"
    kind="file"
-   prop-time="2006-08-11T14:25:41.000000Z"/>
+   prop-time="2006-09-25T15:49:15.000000Z"/>
 <entry
    committed-rev="10"
    name="06quota.t"
-   text-time="2006-08-11T14:25:41.000000Z"
+   text-time="2006-09-25T15:49:15.000000Z"
    committed-date="2006-03-01T13:44:35.884577Z"
    checksum="206110e360ad8c836fca481e3f04ff69"
    last-author="conteb"
    kind="file"
-   prop-time="2006-08-11T14:25:41.000000Z"/>
+   prop-time="2006-09-25T15:49:15.000000Z"/>
 <entry
    committed-rev="1"
    name="03responses.t"
-   text-time="2006-08-11T14:25:41.000000Z"
+   text-time="2006-09-25T15:49:15.000000Z"
    committed-date="2006-02-06T21:05:35.961964Z"
    checksum="4fb50b5a3f60204e9fdfe0f4bc40a984"
    last-author="conteb"
    kind="file"
-   prop-time="2006-08-11T14:25:41.000000Z"/>
+   prop-time="2006-09-25T15:49:15.000000Z"/>
 <entry
    committed-rev="1"
    name="02create.t"
-   text-time="2006-08-11T14:25:41.000000Z"
+   text-time="2006-09-25T15:49:15.000000Z"
    committed-date="2006-02-06T21:05:35.961964Z"
    checksum="10d9b0afb183a4ad0a0222aec315c362"
    last-author="conteb"
    kind="file"
-   prop-time="2006-08-11T14:25:41.000000Z"/>
+   prop-time="2006-09-25T15:49:15.000000Z"/>
+<entry
+   committed-rev="63"
+   name="09annotations.t"
+   text-time="2006-09-25T15:49:15.000000Z"
+   committed-date="2006-09-21T17:47:21.911040Z"
+   checksum="3b9339e572c5871f5762ef7bc63e7415"
+   last-author="conteb"
+   kind="file"
+   prop-time="2006-09-25T15:49:15.000000Z"/>
 <entry
    committed-rev="1"
    name="04parsefetch.t"
-   text-time="2006-08-11T14:25:41.000000Z"
+   text-time="2006-09-25T15:49:15.000000Z"
    committed-date="2006-02-06T21:05:35.961964Z"
    checksum="45e54dda532168eb0e0d2e2b9f0407ec"
    last-author="conteb"
    kind="file"
-   prop-time="2006-08-11T14:25:41.000000Z"/>
+   prop-time="2006-09-25T15:49:15.000000Z"/>
 <entry
    committed-rev="52"
    name="08parsesublist.t"
-   text-time="2006-08-11T14:25:41.000000Z"
+   text-time="2006-09-25T15:49:15.000000Z"
    committed-date="2006-06-23T14:23:33.753445Z"
    checksum="cca421c42f661c04e3a07da88c769392"
    last-author="conteb"
    kind="file"
-   prop-time="2006-08-11T14:25:41.000000Z"/>
+   prop-time="2006-09-25T15:49:15.000000Z"/>
 <entry
    committed-rev="1"
    name="01compile.t"
-   text-time="2006-08-11T14:25:41.000000Z"
+   text-time="2006-09-25T15:49:15.000000Z"
    committed-date="2006-02-06T21:05:35.961964Z"
    checksum="debfb049618c5039934ac4d800890acd"
    last-author="conteb"
    kind="file"
-   prop-time="2006-08-11T14:25:41.000000Z"/>
+   prop-time="2006-09-25T15:49:15.000000Z"/>
 </wc-entries>

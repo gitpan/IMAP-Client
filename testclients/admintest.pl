@@ -71,7 +71,7 @@ unless (ref $imap) {
 
 $imap->onfail('ERROR');
 $imap->errorstyle('STACK');
-$imap->debuglevel(1);
+$imap->debuglevel(0x01);
 
 $imap->connect(PeerAddr => $server,
 	       ConnectMethod => 'STARTTLS SSL',
@@ -120,9 +120,14 @@ dump_hash($imap->status("foobar",'MESSAGES','RECENT','uidnext','uidvalidity','un
 $imap->unsubscribe("foobar");
 $imap->append("foobar",$message,$imap->buildflaglist("Answered"));
 
+$imap->setannotation('foobar',{'/comment' => {'value.shared' => 'This is a comment'}})
+	or warn "UNABLE TO SETANNOTATION\n";
+dump_hash($imap->getannotation("foobar","*","*"));
+
 %resp = $imap->select("asdfasdf");
 dump_hash(%resp) if (%resp);
 dump_hash($imap->select("foobar"));
+
 @resplist = $imap->search('UNDELETED RECENT','UTF-8');
 foreach my $item (@resplist) { print "SEARCH: $item\n"; }
 @resplist = $imap->search('DELETED RECENT','UTF-8');
@@ -158,6 +163,7 @@ $imap->expunge();
 $imap->close();
 $imap->delete("foobar.test");
 $imap->delete("foobar");
+$imap->getannotation("user.postmaster",'*','*');
 $imap->logout();
 $imap->disconnect($server) or warn $imap->error;
 $imap->delete("whee") or warn $imap->error; # Note: this should fail
