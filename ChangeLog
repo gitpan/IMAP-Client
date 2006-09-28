@@ -1,4 +1,12 @@
-2007-09-25	Brenden Conte  <conteb@cpan.org>
+2006-09-28	Brenden Conte  <conteb@cpan.org>
+	* 0.13 - Release
+	* Fixed bug where revoke() would cause an error if the revoked permissions resulted in a null permission set.
+	* Fixed a bug where valid quota responses with empty quota attributes would cause an error
+	* Fixed bugs with most commands when mailboxes that contain spaces are used.  All mailboxes are now quoted once before being sent to the server - submitting a quoted mailbox will not result in two sets of quotes
+	* Fixed documentation error in listing of valid tagless responses for the select/examine commands
+	* Changed return values for all list/sub command to return an arrayref instead of an array for failure return value reasons.  Arrays will still be returned with a DEPRECIATED: warning sent to stdout for backward compatibility.
+
+2006-09-25	Brenden Conte  <conteb@cpan.org>
 	* 0.12 - Release
 	* Added getannotatin/getannotation support with extensive POD.
 	* Added debug bit 0x04, debugging annotations

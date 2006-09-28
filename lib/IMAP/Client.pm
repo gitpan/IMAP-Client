@@ -24,7 +24,7 @@ $|=1;
 our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 
 @ISA = qw( Exporter );
-$VERSION = "0.12";
+$VERSION = "0.13";
 @EXPORT = qw ();
 @EXPORT_OK = qw();
 %EXPORT_TAGS = ();
@@ -264,6 +264,7 @@ sub parse_list_lsub(@) {
 		my %hash = (FLAGS => $flags, REFERENCE => $reference, MAILBOX => $mailbox);
 		push @list, \%hash;
     }
+	@list = () unless ($list[0]);
     return(@list);
 }
 
@@ -600,9 +601,11 @@ sub parse_quota($$) {
     foreach my $line (@resp) {
 		if (my @resources = ($line =~ /^\* QUOTA $localroot ($parens+)\r\n$/)) {
 		    foreach my $resource (@resources) {
-			my ($topic, $values) = ($resource =~ /^\((\w+) (\d+ \d+)\)$/);
-			my @numbers = split(/ /,$values);
-			$quota{$topic} = \@numbers;
+				my ($topic, $values) = ($resource =~ /^\((\w+) (\d+ \d+)\)$/);
+				if (defined $topic) {
+					my @numbers = split(/ /,$values);
+					$quota{$topic} = \@numbers;
+				}
 		    }
 		} elsif (my ($ref) = ($line =~ /^\* QUOTAROOT $localroot (.*)\r\n$/)) {
 		    $quota{'ROOT'} = $ref;
@@ -1298,7 +1301,9 @@ Open a mailbox in read-write mode so that messages in the mailbox can be accesse
 
 =over 4
 
-=item * <n> FLAGS
+=item * FLAGS (<flags>)
+
+=item * <n> EXISTS
 
 =item * <n> RECENT
 
@@ -1361,9 +1366,9 @@ sub create($@) {
 
     # Create mailbox
     if ($server) {
-    	return undef unless ($self->_imap_command("CREATE", "$mailbox $server")); #err already thrown
+    	return undef unless ($self->_imap_command("CREATE", quote_once($mailbox)." $server")); #err already thrown
     } else {
-	    return undef unless ($self->_imap_command("CREATE", $mailbox)); #err already thrown
+	    return undef unless ($self->_imap_command("CREATE", quote_once($mailbox))); #err already thrown
     }
     
     # set quota (if needed)
@@ -1411,7 +1416,7 @@ B<NOTE>: RFC notes that sub-mailboxes are not automatically deleted via this com
 
 sub delete($$) {
     my ($self,$mailbox) = @_;
-    return($self->_imap_command("DELETE", $mailbox));
+    return($self->_imap_command("DELETE", quote_once($mailbox)));
 }
 
 =pod
@@ -1424,7 +1429,7 @@ Rename an existing mailbox from oldmailbox to newmailbox.
 
 sub rename($$$) {
     my ($self,$oldmailbox,$newmailbox) = @_;
-    return($self->_imap_command("RENAME", "$oldmailbox $newmailbox"));
+    return($self->_imap_command("RENAME", quote_once($oldmailbox).' '.quote_once($newmailbox)));
 }
 
 =pod
@@ -1437,7 +1442,7 @@ Subscribe the authorized user to the given mailbox
 
 sub subscribe($$) {
     my ($self,$mailbox) = @_;
-    return($self->_imap_command("SUBSCRIBE", $mailbox));
+    return($self->_imap_command("SUBSCRIBE", quote_once($mailbox)));
 }
 
 =pod
@@ -1450,37 +1455,41 @@ Unsubscribe the authorized user from the given mailbox
 
 sub unsubscribe($$) {
     my ($self,$mailbox) = @_;
-    return($self->_imap_command("UNSUBSCRIBE", $mailbox));
+    return($self->_imap_command("UNSUBSCRIBE", quote_once($mailbox)));
 }
 
 =pod
 
 =item B<list($reference,$mailbox)>
 
-List all the local mailboxes the authorized user can see for the given mailbox from the given reference.  Returns a list of hashes, with each list entry being one result.  Keys in the hashes include FLAGS, REFERENCE, and MAILBOX, and their returned values, respectivly.
+List all the local mailboxes the authorized user can see for the given mailbox from the given reference.  Returns a listref of hashrefs, with each list entry being one result.  Keys in the hashes include FLAGS, REFERENCE, and MAILBOX, and their returned values, respectivly.
 
 =cut
 
 sub list($$$) {
+	warn "DEPRECIATED: list-returning IMAP::Client::list(): Array return values are depreciated and will be removed in future revisions! Instead, accept scalar list-reference\n" if (wantarray);
     my ($self,$reference,$mailbox) = @_;
     my @result = $self->_imap_command("LIST", quote_once($reference).' '.quote_once($mailbox));
-    return(undef) unless ($result[0]);
-    return(parse_list_lsub(@result));
+	return(undef) unless ($result[0]);
+    my @parsed_result = parse_list_lsub(@result);
+	return((wantarray) ? @parsed_result : \@parsed_result);
 }
 
 =pod
 
 =item B<lsub($reference,$mailbox)>
 
-List all the local subscriptions for the authorized user for the given mailbox from the given reference. Returns a list of hashes, which each list entry being one result.  Keys in the hashes include FLAGS, REFERENCE, and MAILBOX, and their returned values, respectivly.
+List all the local subscriptions for the authorized user for the given mailbox from the given reference. Returns a listref of hashrefs, which each list entry being one result.  Keys in the hashes include FLAGS, REFERENCE, and MAILBOX, and their returned values, respectivly.
 
 =cut
 
 sub lsub($$$) {
+	warn "DEPRECIATED: list-returning IMAP::Client::lsub(): Array return values are depreciated and will be removed in future revisions! Convert code to accept scalar list-reference\n" if (wantarray);
     my ($self,$reference,$mailbox) = @_;
     my @result = $self->_imap_command("LSUB", quote_once($reference).' '.quote_once($mailbox));
-    return(undef) unless ($result[0]);
-    return(parse_list_lsub(@result));
+	return(undef) unless ($result[0]);
+    my @parsed_result = parse_list_lsub(@result);
+	return((wantarray) ? @parsed_result : \@parsed_result);
 }
 
 =pod
@@ -1508,7 +1517,7 @@ sub status($$@) {
     chop($statusitems); # we don't want that trailing space
     $statusitems .= ')';
 
-    my @resp = $self->_imap_command("STATUS", "$mailbox $statusitems");
+    my @resp = $self->_imap_command("STATUS", quote_once($mailbox)." $statusitems");
     return(undef) unless ($resp[0]);
     
     # find STATUS line and process results
@@ -1556,8 +1565,8 @@ sub append ($$$) {
     $flaglist = "()" unless $flaglist;
 
 	my @result = ($self->check_capability('LITERAL+')) ? #non-synchronizing literals support
-					$self->_imap_command("APPEND","$mailbox $flaglist {$messagelen+}\r\n$message") :
-					$self->_imap_command("APPEND","$mailbox $flaglist {$messagelen}",$message);
+					$self->_imap_command("APPEND",quote_once($mailbox)." $flaglist {$messagelen+}\r\n$message") :
+					$self->_imap_command("APPEND",quote_once($mailbox)." $flaglist {$messagelen}",$message);
 					
 	if ($self->check_capability('UIDPLUS')) {
 		
@@ -1611,7 +1620,7 @@ sub expunge() {
 
 Search for messages in the currently select()ed or examine()d mailbox matching the searchstring critera, where searchstring is a valid IMAP search query.See the end of this document for valid search terminology.  The charset argument is optional - undef defaults to ASCII.
 
-This function returns a list of sequence IDs that match the query when in list context, and a space-seperated list of sequence IDs if in scalar context.  The scalar context allows nested calling within functions that require sequences, such as `fetch(search('RECENT'),undef,'FLAGS')`
+This function returns a listref of sequence IDs that match the query when in list context, and a space-seperated list of sequence IDs if in scalar context.  The scalar context allows nested calling within functions that require sequences, such as `fetch(search('RECENT'),undef,'FLAGS')`
 
 =cut
 
@@ -1887,7 +1896,7 @@ Modify the access control lists to set the provided permissions for the user on 
 sub setacl ($$$@) {
     my ($self,$mailbox,$user,@permissions) = @_;
     my $aclstring = $self->buildacl(@permissions);
-    return($self->_imap_command("SETACL", "$mailbox $user $aclstring"));
+    return($self->_imap_command("SETACL", quote_once($mailbox)." $user $aclstring"));
 };
 
 =pod
@@ -1900,7 +1909,7 @@ Remove all permissions for user on the mailbox's access control list.
 
 sub deleteacl ($$$) {
     my ($self, $mailbox, $user) = @_;
-    return($self->_imap_command("DELETEACL","$mailbox $user"));
+    return($self->_imap_command("DELETEACL",quote_once($mailbox)." $user"));
 }
 
 =pod
@@ -1913,12 +1922,12 @@ Get the access control list for the supplied mailbox. Returns a two-level hash, 
 
 sub getacl ($$) {
     my ($self, $mailbox) = @_;
-    my @resp = $self->_imap_command("GETACL", $mailbox);
+    my @resp = $self->_imap_command("GETACL", quote_once($mailbox));
     return(()) unless ($resp[0]);
 
     my %permissions;
     foreach my $line (@resp) {
-		if (my ($set) = ($line =~ /^\* ACL $mailbox (.*)\r\n$/i)) {
+		if (my ($set) = ($line =~ /^\* ACL \"?$mailbox\"? (.*)\r\n$/i)) { #"
 		    my %_hash = split(/ /,$set); # split out user/perms set
 		    foreach my $user (keys %_hash) {
 				my %_perms = map {$_ => 1} split(//,$_hash{$user});
@@ -1944,7 +1953,7 @@ sub grant ($$$@) {
     my ($self,$mailbox,$user,@permissions) = @_;
     my %acls = $self->getacl($mailbox,$user);
 
-    return($self->setacl($mailbox,$user,(@permissions, keys %{$acls{$user}})));
+    return($self->setacl(quote_once($mailbox),$user,(@permissions, keys %{$acls{$user}})));
 }
 
 =pod
@@ -1957,7 +1966,7 @@ Modify the access control lists to remove the specified permissions for the user
 
 sub revoke ($$$@) {
     my ($self,$mailbox,$user,@permissions) = @_;
-    my %acls = $self->getacl($mailbox);
+    my %acls = $self->getacl(quote_once($mailbox));
 
     # REMOVE @permissions from %acls
     my %remove = map {$_ => 1} split(//,$self->buildacl(@permissions));
@@ -1966,6 +1975,10 @@ sub revoke ($$$@) {
 		delete $acls{$user}->{$perm};
     }
 
+	if (scalar(keys %{$acls{$user}}) == 0) {
+		return($self->deleteacl($mailbox,$user));
+	}
+	
     return($self->setacl($mailbox,$user,(keys %{$acls{$user}})));
 }
 
@@ -1979,7 +1992,7 @@ Get the list of access controls that may be granted to the supplied user for the
 
 sub listrights($$$) {
     my ($self, $mailbox, $user) = @_;
-    my @resp = $self->_imap_command("LISTRIGHTS", "$mailbox $user");
+    my @resp = $self->_imap_command("LISTRIGHTS", quote_once($mailbox)." $user");
     return(()) unless ($resp[0]);    
     
     my %permissions;
@@ -2003,12 +2016,12 @@ Get the access control list information for the currently authorized user's acce
 
 sub myrights($$) {
     my ($self, $mailbox) = @_;
-    my @resp = $self->_imap_command("MYRIGHTS", $mailbox);
+    my @resp = $self->_imap_command("MYRIGHTS", quote_once($mailbox));
     return(()) unless ($resp[0]);
 
     my %permissions;
     foreach my $line (@resp) {
-		if (my ($permissionstring) = ($line =~ /^\* MYRIGHTS $mailbox (.*)\r\n$/i)) {
+		if (my ($permissionstring) = ($line =~ /^\* MYRIGHTS \"?$mailbox\"? (.*)\r\n$/i)) { #"
 		    %permissions = map {$_ => 1} split(//,$permissionstring);
 		}
     }
@@ -2030,7 +2043,7 @@ Set the quota on the mailbox.  Type is the type of quota to specify, for example
 
 sub setquota($$$$) {
     my ($self,$mailbox,$type,$quota) = @_;
-    return($self->_imap_command("SETQUOTA", "$mailbox ($type $quota)"));
+    return($self->_imap_command("SETQUOTA", quote_once($mailbox)." ($type $quota)"));
 }
 
 =pod
@@ -2048,8 +2061,8 @@ sub getquota($$) {
 
     return($self->throw_error("QUOTA not supported for GETQUOTA command")) unless ($self->check_capability('QUOTA'));
 
-    my @resp = $self->_imap_command("GETQUOTA", $mailbox);
-    return(undef) unless ($resp[0]);
+    my @resp = $self->_imap_command("GETQUOTA", quote_once($mailbox));
+    return(()) unless ($resp[0]);
 
     my %quota = parse_quota($mailbox,\@resp);
 }
@@ -2067,7 +2080,7 @@ sub getquotaroot($$) {
 
     return($self->throw_error("QUOTA not supported for GETQUOTAROOT command")) unless ($self->check_capability('QUOTA'));
 
-    my @resp = $self->_imap_command("GETQUOTAROOT", $mailbox);
+    my @resp = $self->_imap_command("GETQUOTAROOT", quote_once($mailbox));
     return(undef) unless ($resp[0]);
 
     my %quota = parse_quota($mailbox,\@resp);
@@ -2083,7 +2096,7 @@ sub getquotaroot($$) {
 
 List all the mailboxes the authorized user can see for the given mailbox from the given reference.  This command lists both local and remote mailboxes, and can also be an indicator to the server that the client (you) supports referrals.  Not reccomended if referrals are not supported by the overlying program.
 
-Returns a list of hashes, one per element, where each hashes keys include FLAGS, REFERENCE, and MAILBOX.
+Returns a listref of hasherefs, one per element, where each hashes keys include FLAGS, REFERENCE, and MAILBOX.
 
 IMPORTANT: Referrals come in a "NO" response, so this command will fail even if responded to with a referral.  The referral MUST be pulled out of the error(), and can then be parsed by the parse_referral() command if desired, to extract the important pieces for the clients used.
 
@@ -2092,11 +2105,13 @@ Unless overridden, rlist will check for the MAILBOX-REFERRALS capability() atom 
 =cut
 
 sub rlist($$$) {
+	warn "DEPRECIATED: list-returning IMAP::Client::rlist(): Array return values are depreciated and will be removed in future revisions! Convert code to accept scalar list-reference\n" if (wantarray);
     my ($self,$reference,$mailbox) = @_;
     return($self->throw_error("MAILBOX-REFERRALS not supported for RLIST command")) unless ($self->check_capability('MAILBOX-REFERRALS'));
     my @result = $self->_imap_command("RLIST", quote_once($reference).' '.quote_once($mailbox));
-    return(undef) unless ($result[0]);
-    return(parse_list_lsub(@result));
+	return(undef) unless ($result[0]);
+    my @parsed_result = parse_list_lsub(@result);
+	return((wantarray) ? @parsed_result : \@parsed_result);
 }
 
 =pod
@@ -2105,7 +2120,7 @@ sub rlist($$$) {
 
 List all the subscriptions for the authorized user for the given mailbox from the given reference.  This command lists both local and remote subscriptions, and can also be an indicator to the server that the client (you) supports referrals.  Not reccomended if referrals are not supported by the overlying program.
 
-Returns a list of hashes, one result per element, where each hashes keys include FLAGS, REFERENCE, and MAILBOX.
+Returns a listref of hasherefs, one result per element, where each hashes keys include FLAGS, REFERENCE, and MAILBOX.
 
 IMPORTANT: Referrals come in a "NO" response, so this command will fail even if responded to with a referral.  The referral MUST be pulled out of the error(), and can then be parsed by the parse_referral() command if desired, to extract the important pieces for the clients used.
 
@@ -2114,11 +2129,13 @@ Unless overridden, rlsub will check for the MAILBOX-REFERRALS capability() atom 
 =cut
 
 sub rlsub($$$) {
+	warn "DEPRECIATED: list-returning IMAP::Client::rlsub(): Array return values are depreciated and will be removed in future revisions! Convert code to accept scalar list-reference\n" if (wantarray);
     my ($self,$reference,$mailbox) = @_;
     return($self->throw_error("MAILBOX-REFERRALS not supported for RLSUB command")) unless ($self->check_capability('MAILBOX-REFERRALS'));
     my @result = $self->_imap_command("RLSUB", quote_once($reference).' '.quote_once($mailbox));
-    return(undef) unless ($result[0]);
-    return(parse_list_lsub(@result));
+	return(undef) unless ($result[0]);
+    my @parsed_result = parse_list_lsub(@result);
+	return((wantarray) ? @parsed_result : \@parsed_result);
 }
 
 
